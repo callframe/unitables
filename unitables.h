@@ -141,9 +141,9 @@ struct Unitables_Properties const* unitables_properties(
 expanding Hangul syllables algorithmically. Returns the number of code points
 the decomposition needs; if that exceeds dst_cap, dst holds an undefined
 partial result. A code point with no decomposition yields itself. */
-int32_t unitables_decompose(Unitables_Codepoint codepoint,
-                            int32_t compatibility, Unitables_Codepoint* dst,
-                            int32_t dst_cap);
+uint32_t unitables_decompose(Unitables_Codepoint codepoint,
+                             uint8_t compatibility, Unitables_Codepoint* dst,
+                             uint32_t dst_cap);
 
 /* Returns the canonical composition of starter and the following code point,
 or UNITABLES_INVALID_CODEPOINT if the two do not compose. Handles Hangul. */

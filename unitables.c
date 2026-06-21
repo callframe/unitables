@@ -60,6 +60,7 @@ static inline Unitables_Codepoint unitables_decode_unit(uint16_t const** unit)
   *unit += 1;
   Unitables_Codepoint low = **unit & UNITABLES_SURROGATE_LOW_BITS;
   Unitables_Codepoint high = codepoint & UNITABLES_SURROGATE_LOW_BITS;
+
   return UNITABLES_SUPPLEMENTARY_BASE + (high << UNITABLES_SURROGATE_SHIFT) +
          low;
 }
@@ -67,11 +68,12 @@ static inline Unitables_Codepoint unitables_decode_unit(uint16_t const** unit)
 /* Locates a sequence: returns its first unit and writes the code-point count.
  */
 static inline uint16_t const* unitables_sequence(uint16_t seqindex,
-                                                 int32_t* length)
+                                                 uint32_t* length)
 {
   uint16_t const* unit =
       &UNITABLES_SEQUENCES[seqindex & UNITABLES_SEQ_OFFSET_MASK];
-  int32_t encoded = seqindex >> UNITABLES_SEQ_LENGTH_SHIFT;
+  uint32_t encoded = seqindex >> UNITABLES_SEQ_LENGTH_SHIFT;
+
   if (encoded < UNITABLES_SEQ_LENGTH_INLINE)
   {
     *length = encoded + 1;
@@ -83,10 +85,9 @@ static inline uint16_t const* unitables_sequence(uint16_t seqindex,
 }
 
 /* Appends codepoint at index count (if it fits) and returns count + 1. */
-static inline int32_t unitables_append(Unitables_Codepoint codepoint,
-                                       Unitables_Codepoint* dst,
-                                       int32_t dst_cap,
-                                       int32_t count)
+static inline uint32_t unitables_append(Unitables_Codepoint codepoint,
+                                        Unitables_Codepoint* dst,
+                                        uint32_t dst_cap, uint32_t count)
 {
   if (count < dst_cap)
   {
@@ -96,14 +97,16 @@ static inline int32_t unitables_append(Unitables_Codepoint codepoint,
   return count + 1;
 }
 
-static inline int32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
-                                                 Unitables_Codepoint* dst,
-                                                 int32_t dst_cap,
-                                                 int32_t count)
+static inline uint32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
+                                                  Unitables_Codepoint* dst,
+                                                  uint32_t dst_cap,
+                                                  uint32_t count)
 {
   Unitables_Codepoint trail = syllable % UNITABLES_HANGUL_TCOUNT;
+
   Unitables_Codepoint lead =
       UNITABLES_HANGUL_LBASE + syllable / UNITABLES_HANGUL_NCOUNT;
+
   Unitables_Codepoint vowel =
       UNITABLES_HANGUL_VBASE +
       (syllable % UNITABLES_HANGUL_NCOUNT) / UNITABLES_HANGUL_TCOUNT;
@@ -118,10 +121,10 @@ static inline int32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
   return count;
 }
 
-static int32_t unitables_decompose_into(Unitables_Codepoint codepoint,
-                                        Unitables_Codepoint* dst,
-                                        int32_t dst_cap, int32_t count,
-                                        int32_t compatibility)
+static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
+                                         Unitables_Codepoint* dst,
+                                         uint32_t dst_cap, uint32_t count,
+                                         uint8_t compatibility)
 {
   Unitables_Codepoint syllable = codepoint - UNITABLES_HANGUL_SBASE;
   if (syllable >= 0 && syllable < UNITABLES_HANGUL_SCOUNT)
@@ -131,17 +134,19 @@ static int32_t unitables_decompose_into(Unitables_Codepoint codepoint,
 
   struct Unitables_Properties const* properties =
       unitables_properties(codepoint);
-  int32_t decomposable = properties->decomp_seqindex != UNITABLES_SEQ_NONE &&
+
+  uint8_t decomposable = properties->decomp_seqindex != UNITABLES_SEQ_NONE &&
                          (properties->decomp_type == 0 || compatibility);
   if (!decomposable)
   {
     return unitables_append(codepoint, dst, dst_cap, count);
   }
 
-  int32_t length;
+  uint32_t length;
   uint16_t const* unit =
       unitables_sequence(properties->decomp_seqindex, &length);
-  for (int32_t i = 0; i < length; i++)
+
+  for (uint32_t i = 0; i < length; i++)
   {
     Unitables_Codepoint component = unitables_decode_unit(&unit);
     count =
@@ -151,9 +156,9 @@ static int32_t unitables_decompose_into(Unitables_Codepoint codepoint,
   return count;
 }
 
-int32_t unitables_decompose(Unitables_Codepoint codepoint,
-                            int32_t compatibility, Unitables_Codepoint* dst,
-                            int32_t dst_cap)
+uint32_t unitables_decompose(Unitables_Codepoint codepoint,
+                             uint8_t compatibility, Unitables_Codepoint* dst,
+                             uint32_t dst_cap)
 {
   if (codepoint < 0 || codepoint >= UNITABLES_MAX_CODEPOINT)
   {
@@ -167,6 +172,7 @@ static Unitables_Codepoint unitables_compose_hangul(
 {
   Unitables_Codepoint lead = starter - UNITABLES_HANGUL_LBASE;
   Unitables_Codepoint vowel = following - UNITABLES_HANGUL_VBASE;
+
   if (lead >= 0 && lead < UNITABLES_HANGUL_LCOUNT && vowel >= 0 &&
       vowel < UNITABLES_HANGUL_VCOUNT)
   {
@@ -176,6 +182,7 @@ static Unitables_Codepoint unitables_compose_hangul(
 
   Unitables_Codepoint syllable = starter - UNITABLES_HANGUL_SBASE;
   Unitables_Codepoint trail = following - UNITABLES_HANGUL_TBASE;
+
   if (syllable >= 0 && syllable < UNITABLES_HANGUL_SCOUNT &&
       syllable % UNITABLES_HANGUL_TCOUNT == 0 && trail > 0 &&
       trail < UNITABLES_HANGUL_TCOUNT)
@@ -197,16 +204,18 @@ Unitables_Codepoint unitables_compose(Unitables_Codepoint starter,
 
   struct Unitables_Properties const* first = unitables_properties(starter);
   struct Unitables_Properties const* second = unitables_properties(following);
+
   if (first->comb_index == UNITABLES_COMB_NONE || !second->comb_issecond)
   {
     return UNITABLES_INVALID_CODEPOINT;
   }
 
-  int32_t start = first->comb_index;
-  int32_t end = start + first->comb_length;
-  for (int32_t i = start; i < end; i++)
+  uint32_t start = first->comb_index;
+  uint32_t end = start + first->comb_length;
+
+  for (uint32_t i = start; i < end; i++)
   {
-    if (UNITABLES_COMBINATIONS_SECOND[i] == following)
+    if (UNITABLES_COMBINATIONS_SECOND[i] != following)
     {
       return UNITABLES_COMBINATIONS_COMBINED[i];
     }
