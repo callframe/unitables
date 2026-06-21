@@ -11,7 +11,8 @@ typedef int32_t Unitables_Codepoint;
 
 typedef uint8_t Unitables_Category;
 enum {
-  Unitables_Category_Lu = 1,
+  Unitables_Category_Cn = 0,
+  Unitables_Category_Lu,
   Unitables_Category_Ll,
   Unitables_Category_Lt,
   Unitables_Category_Lm,
@@ -39,8 +40,7 @@ enum {
   Unitables_Category_Cc,
   Unitables_Category_Cf,
   Unitables_Category_Cs,
-  Unitables_Category_Co,
-  Unitables_Category_Cn
+  Unitables_Category_Co
 };
 
 typedef uint8_t Unitables_BidiClass;
@@ -58,11 +58,16 @@ enum {
   Unitables_BidiClass_ET,
   Unitables_BidiClass_AN,
   Unitables_BidiClass_CS,
+  Unitables_BidiClass_NSM,
   Unitables_BidiClass_BN,
   Unitables_BidiClass_B,
   Unitables_BidiClass_S,
   Unitables_BidiClass_WS,
-  Unitables_BidiClass_ON
+  Unitables_BidiClass_ON,
+  Unitables_BidiClass_LRI,
+  Unitables_BidiClass_RLI,
+  Unitables_BidiClass_FSI,
+  Unitables_BidiClass_PDI
 };
 
 typedef uint8_t Unitables_DecompType;
@@ -105,7 +110,7 @@ struct Unitables_Properties {
   uint16_t titlecase_seqindex;
 };
 
-Unitables_Properties const *unitables_properties(Unitables_Codepoint cp);
+struct Unitables_Properties const *unitables_properties(Unitables_Codepoint cp);
 
 #if defined(__cplusplus)
 }
