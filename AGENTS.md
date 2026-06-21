@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 UniTables is a small C library that emits lookup tables for Unicode properties (it is not a full Unicode processing library). It deliberately ships the minimal set of properties for now and is built to grow.
 
 ## Commands
