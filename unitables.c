@@ -84,10 +84,11 @@ static inline uint16_t const* unitables_sequence(uint16_t seqindex,
 
 /* Appends codepoint at index count (if it fits) and returns count + 1. */
 static inline int32_t unitables_append(Unitables_Codepoint codepoint,
-                                       Unitables_Codepoint* dst, int32_t cap,
+                                       Unitables_Codepoint* dst,
+                                       int32_t dst_cap,
                                        int32_t count)
 {
-  if (count < cap)
+  if (count < dst_cap)
   {
     dst[count] = codepoint;
   }
@@ -97,7 +98,8 @@ static inline int32_t unitables_append(Unitables_Codepoint codepoint,
 
 static inline int32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
                                                  Unitables_Codepoint* dst,
-                                                 int32_t cap, int32_t count)
+                                                 int32_t dst_cap,
+                                                 int32_t count)
 {
   Unitables_Codepoint trail = syllable % UNITABLES_HANGUL_TCOUNT;
   Unitables_Codepoint lead =
@@ -106,23 +108,25 @@ static inline int32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
       UNITABLES_HANGUL_VBASE +
       (syllable % UNITABLES_HANGUL_NCOUNT) / UNITABLES_HANGUL_TCOUNT;
 
-  count = unitables_append(lead, dst, cap, count);
-  count = unitables_append(vowel, dst, cap, count);
+  count = unitables_append(lead, dst, dst_cap, count);
+  count = unitables_append(vowel, dst, dst_cap, count);
   if (trail != 0)
   {
-    count = unitables_append(UNITABLES_HANGUL_TBASE + trail, dst, cap, count);
+    count =
+        unitables_append(UNITABLES_HANGUL_TBASE + trail, dst, dst_cap, count);
   }
   return count;
 }
 
 static int32_t unitables_decompose_into(Unitables_Codepoint codepoint,
-                                        Unitables_Codepoint* dst, int32_t cap,
-                                        int32_t count, int32_t compatibility)
+                                        Unitables_Codepoint* dst,
+                                        int32_t dst_cap, int32_t count,
+                                        int32_t compatibility)
 {
   Unitables_Codepoint syllable = codepoint - UNITABLES_HANGUL_SBASE;
   if (syllable >= 0 && syllable < UNITABLES_HANGUL_SCOUNT)
   {
-    return unitables_decompose_hangul(syllable, dst, cap, count);
+    return unitables_decompose_hangul(syllable, dst, dst_cap, count);
   }
 
   struct Unitables_Properties const* properties =
@@ -131,7 +135,7 @@ static int32_t unitables_decompose_into(Unitables_Codepoint codepoint,
                          (properties->decomp_type == 0 || compatibility);
   if (!decomposable)
   {
-    return unitables_append(codepoint, dst, cap, count);
+    return unitables_append(codepoint, dst, dst_cap, count);
   }
 
   int32_t length;
@@ -140,21 +144,22 @@ static int32_t unitables_decompose_into(Unitables_Codepoint codepoint,
   for (int32_t i = 0; i < length; i++)
   {
     Unitables_Codepoint component = unitables_decode_unit(&unit);
-    count = unitables_decompose_into(component, dst, cap, count, compatibility);
+    count =
+        unitables_decompose_into(component, dst, dst_cap, count, compatibility);
     unit++;
   }
   return count;
 }
 
 int32_t unitables_decompose(Unitables_Codepoint codepoint,
-                            Unitables_Codepoint* dst, int32_t cap,
-                            int32_t compatibility)
+                            int32_t compatibility, Unitables_Codepoint* dst,
+                            int32_t dst_cap)
 {
   if (codepoint < 0 || codepoint >= UNITABLES_MAX_CODEPOINT)
   {
-    return unitables_append(codepoint, dst, cap, 0);
+    return unitables_append(codepoint, dst, dst_cap, 0);
   }
-  return unitables_decompose_into(codepoint, dst, cap, 0, compatibility);
+  return unitables_decompose_into(codepoint, dst, dst_cap, 0, compatibility);
 }
 
 static Unitables_Codepoint unitables_compose_hangul(

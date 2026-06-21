@@ -129,17 +129,21 @@ struct Unitables_Properties
   uint16_t comb_issecond : 1;
 };
 
+/* Returns the Unicode properties for codepoint. Invalid, out-of-range, and
+unassigned code points return a shared sentinel whose category is
+Unitables_Category_Cn. The returned pointer refers to static data and
+remains valid for the lifetime of the program. */
 struct Unitables_Properties const* unitables_properties(
     Unitables_Codepoint codepoint);
 
 /* Writes the full canonical (compatibility == 0) or compatibility
 (compatibility != 0) decomposition of codepoint into dst, recursing and
 expanding Hangul syllables algorithmically. Returns the number of code points
-the decomposition needs; if that exceeds cap, dst holds an undefined partial
-result. A code point with no decomposition yields itself. */
+the decomposition needs; if that exceeds dst_cap, dst holds an undefined
+partial result. A code point with no decomposition yields itself. */
 int32_t unitables_decompose(Unitables_Codepoint codepoint,
-                            Unitables_Codepoint* dst, int32_t cap,
-                            int32_t compatibility);
+                            int32_t compatibility, Unitables_Codepoint* dst,
+                            int32_t dst_cap);
 
 /* Returns the canonical composition of starter and the following code point,
 or UNITABLES_INVALID_CODEPOINT if the two do not compose. Handles Hangul. */
