@@ -115,7 +115,16 @@ def encode_sequence(mapping):
     return offset | (min(length, 3) << 14)
 
 
-SENTINEL = ("Unitables_Category_Cn", 0, "0", "0", SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE)
+SENTINEL = (
+    "Unitables_Category_Cn",
+    0,
+    "0",
+    "0",
+    SEQ_NONE,
+    SEQ_NONE,
+    SEQ_NONE,
+    SEQ_NONE,
+)
 properties = [SENTINEL]
 property_indices = {SENTINEL: 0}
 char_index = [0] * MAX_CODEPOINT
