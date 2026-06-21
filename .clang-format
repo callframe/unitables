@@ -186,13 +186,13 @@ IndentAccessModifiers: false
 IndentCaseBlocks: false
 IndentCaseLabels: true
 IndentExportBlock: true
-IndentExternBlock: AfterExternBlock
+IndentExternBlock: NoIndent
 IndentGotoLabels: true
 IndentPPDirectives: None
 IndentRequiresClause: true
 IndentWidth:     2
 IndentWrappedFunctionNames: false
-InsertBraces:    false
+InsertBraces:    true
 InsertNewlineAtEOF: false
 InsertTrailingCommas: None
 IntegerLiteralSeparator:

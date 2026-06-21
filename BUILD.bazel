@@ -11,12 +11,14 @@ GENERATOR_ARGS = [
     "$(location :unitables_generator)",
     "$(RULEDIR)",
     "$(location @unicode_data//file)",
+    "$(location @composition_exclusions//file)",
 ]
 
 genrule(
     name = "generate_unitables",
     srcs = [
-      "@unicode_data//file"
+        "@unicode_data//file",
+        "@composition_exclusions//file",
     ],
     outs = [
         "unitables_data.c",

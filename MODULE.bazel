@@ -21,6 +21,11 @@ http_file(
     name = "unicode_data",
     urls = ["%s/%s/ucd/UnicodeData.txt" % (UNICODE_BASE, UNICODE_VERSION)],
     sha256 = "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
-    
+)
+
+http_file(
+    name = "composition_exclusions",
+    urls = ["%s/%s/ucd/CompositionExclusions.txt" % (UNICODE_BASE, UNICODE_VERSION)],
+    sha256 = "2f239196ef3b5b61db5cc476e9bd80f534d15aa1b74e1be1dea5d042a344c85f",
 )
 
