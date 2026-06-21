@@ -1,14 +1,7 @@
 """Generate unitables_data.c from the Unicode Character Database.
 
-Two phases, marked by the banners below:
-
-  PROCESS <file>   read one UCD file into its own table keyed by code point.
-                   Adding a UCD file is adding one PROCESS block.
-
-  PRODUCE <table>  combine the processed tables into one emitted C array.
-                   Adding a property is one field here plus one in unitables.h.
-
-Same on-disk layout as utf8proc (see ref/utf8proc.c and ref/utf8proc.jl).
+PROCESS blocks read a UCD file into a table keyed by code point; PRODUCE blocks
+combine those into the emitted C arrays. Layout follows utf8proc (see ref/).
 """
 
 import sys
@@ -21,16 +14,12 @@ if len(sys.argv) != 3:
 out_path = Path(sys.argv[1]) / "unitables_data.c"
 unicode_data_path = Path(sys.argv[2])
 
-MAX_CODEPOINT = 0x110000  # exclusive end of the Unicode code space
-PAGE_SIZE = 0x100  # code points per page in the two-stage index
+MAX_CODEPOINT = 0x110000
+PAGE_SIZE = 0x100
 SEQ_NONE = 0xFFFF  # UINT16_MAX: a *_seqindex with no mapping
 
 
 def intern(store, seen, key, block):
-    """Append block to store the first time key is seen; return its start offset.
-
-    The single deduplication primitive shared by every PRODUCE block below.
-    """
     offset = seen.get(key)
     if offset is None:
         offset = len(store)
@@ -49,7 +38,7 @@ UnicodeRecord = namedtuple(
     "uppercase lowercase titlecase",
 )
 
-unicode_data = {}  # code point -> UnicodeRecord
+unicode_data = {}
 
 
 def decomp_type_enum(tag):
@@ -91,7 +80,7 @@ while i < len(lines):
     i += 1
     code, name = int(fields[0], 16), fields[1]
     record = parse_unicode_record(fields)
-    if name.endswith(", First>"):  # range pair: fill through the ", Last>" line
+    if name.endswith(", First>"):
         last = int(lines[i].split(";")[0], 16)
         i += 1
         for cp in range(code, last + 1):
@@ -103,11 +92,6 @@ while i < len(lines):
 # =============================================================================
 # PRODUCE  UNITABLES_SEQUENCES + UNITABLES_PROPERTIES
 # =============================================================================
-# All decomposition/case mappings share one deduplicated UTF-16 array. A seqindex
-# packs the storage offset (low 14 bits) and the decoded length-1 (top 2 bits; 3
-# means the length is stored inline as the first unit). BMP code points take one
-# unit, non-BMP a surrogate pair. Property structs are deduplicated too; index 0
-# is the unassigned/out-of-range sentinel.
 
 sequences = []
 sequence_offsets = {}
@@ -124,6 +108,7 @@ def encode_sequence(mapping):
             cp -= 0x10000
             units += [0xD800 + (cp >> 10), 0xDC00 + (cp & 0x3FF)]
     length = len(mapping) - 1
+    # seqindex = offset (low 14 bits) | length-1 (top 2 bits; 3 = length stored inline).
     block = [length, *units] if length >= 3 else units
     offset = intern(sequences, sequence_offsets, tuple(units), block)
     assert offset <= 0x3FFF, "sequence storage exceeds the 14-bit seqindex range"
@@ -153,8 +138,7 @@ for code in sorted(unicode_data):
 # =============================================================================
 # PRODUCE  UNITABLES_STAGE1 + UNITABLES_STAGE2
 # =============================================================================
-# Page-compress char_index. stage1[cp>>8] is the base of cp's page within stage2,
-# so the runtime lookup is stage2[stage1[cp>>8] + (cp & 0xFF)].
+# lookup: stage2[stage1[cp >> 8] + (cp & 0xFF)]
 
 stage1 = []
 stage2 = []
