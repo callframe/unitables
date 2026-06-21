@@ -19,8 +19,7 @@ genrule(
       "@unicode_data//file"
     ],
     outs = [
-        "unitables.cc",
-        "unitables.h",
+        "unitables_data.c",
     ],
     tools = [":unitables_generator"],
     cmd = " ".join(GENERATOR_ARGS),
@@ -28,7 +27,7 @@ genrule(
 
 cc_library(
     name = "unitables",
-    textual_hdrs = ["unitables_data.h"],
+    textual_hdrs = ["unitables_data.c"],
     srcs = ["unitables.c"],
     hdrs = ["unitables.h"],
     visibility = ["//visibility:public"],
