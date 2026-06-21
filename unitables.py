@@ -1,294 +1,204 @@
-"""Generate unitables_data.c from UnicodeData.txt.
+"""Generate unitables_data.c from the Unicode Character Database.
 
-The pipeline is: parse a source file into per-code-point records, build a shared
-packed sequences table, deduplicate the property structs, then page-compress the
-per-code-point property indices into a two-stage lookup table (mirrors utf8proc's
-layout: see ref/utf8proc.c and ref/utf8proc.jl).
+Two phases, marked by the banners below:
 
-Only UnicodeData.txt is processed for now. Additional UCD sources slot in as new
-parser functions that augment the existing CharProps records; no other stage has
-to change.
+  PROCESS <file>   read one UCD file into its own table keyed by code point.
+                   Adding a UCD file is adding one PROCESS block.
+
+  PRODUCE <table>  combine the processed tables into one emitted C array.
+                   Adding a property is one field here plus one in unitables.h.
+
+Same on-disk layout as utf8proc (see ref/utf8proc.c and ref/utf8proc.jl).
 """
 
 import sys
-from dataclasses import dataclass
+from collections import namedtuple
 from pathlib import Path
-from typing import Optional
-
-# Arguments in expected order:
-# - Output directory
-# - Path to UnicodeData.txt
 
 if len(sys.argv) != 3:
-    print("Usage: python unitables.py <output_dir> <unicode_data_path>")
-    sys.exit(1)
+    sys.exit("Usage: python unitables.py <output_dir> <unicode_data_path>")
 
-OUTPUT_DIR = Path(sys.argv[1])
-UNICODE_DATA_PATH = Path(sys.argv[2])
+out_path = Path(sys.argv[1]) / "unitables_data.c"
+unicode_data_path = Path(sys.argv[2])
 
-# Output file: unitables_data.c
-UNITABLES_DATA_C = OUTPUT_DIR / "unitables_data.c"
-
-MAX_CODEPOINT = 0x110000  # exclusive upper bound of the Unicode code space
+MAX_CODEPOINT = 0x110000  # exclusive end of the Unicode code space
 PAGE_SIZE = 0x100  # code points per page in the two-stage index
 SEQ_NONE = 0xFFFF  # UINT16_MAX: a *_seqindex with no mapping
 
-# Maps a UnicodeData.txt decomposition tag (e.g. "<compat>") to the suffix of the
-# matching Unitables_DecompType_* enum constant.
-DECOMP_TYPE_SUFFIX = {
-    "font": "Font",
-    "noBreak": "NoBreak",
-    "initial": "Initial",
-    "medial": "Medial",
-    "final": "Final",
-    "isolated": "Isolated",
-    "circle": "Circle",
-    "super": "Super",
-    "sub": "Sub",
-    "vertical": "Vertical",
-    "wide": "Wide",
-    "narrow": "Narrow",
-    "small": "Small",
-    "square": "Square",
-    "fraction": "Fraction",
-    "compat": "Compat",
-}
 
+def intern(store, seen, key, block):
+    """Append block to store the first time key is seen; return its start offset.
 
-@dataclass(slots=True)
-class CharProps:
-    """Every property of a single code point.
-
-    Fields default to the "unassigned" value so that future UCD sources can
-    augment records without disturbing the ones already filled in. Today every
-    field is populated from UnicodeData.txt.
+    The single deduplication primitive shared by every PRODUCE block below.
     """
-
-    category: str = "Cn"
-    combining_class: int = 0
-    bidi_class: str = "L"
-    decomp_type: Optional[str] = None
-    decomp_mapping: Optional[list] = None
-    uppercase_mapping: Optional[int] = None
-    lowercase_mapping: Optional[int] = None
-    titlecase_mapping: Optional[int] = None
+    offset = seen.get(key)
+    if offset is None:
+        offset = len(store)
+        store.extend(block)
+        seen[key] = offset
+    return offset
 
 
-def parse_unicode_data(path):
-    """Parse UnicodeData.txt into {code_point: CharProps}.
+# =============================================================================
+# PROCESS  UnicodeData.txt
+# =============================================================================
 
-    Expands the "<..., First>" / "<..., Last>" range pairs (e.g. CJK ideographs,
-    Hangul syllables, surrogates) into one record per code point.
-    """
-    records = {}
-    lines = path.read_text(encoding="utf-8").splitlines()
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        i += 1
-        if not line:
-            continue
-        fields = line.split(";")
-        code = int(fields[0], 16)
-        name = fields[1]
-        props = _parse_fields(fields)
-        if name.endswith(", First>"):
-            last_fields = lines[i].split(";")
-            i += 1
-            assert last_fields[1].endswith(", Last>"), "unmatched range First/Last"
-            last_code = int(last_fields[0], 16)
-            for cp in range(code, last_code + 1):
-                records[cp] = props
-        else:
-            records[code] = props
-    return records
+UnicodeRecord = namedtuple(
+    "UnicodeRecord",
+    "category combining_class bidi_class decomp_type decomp "
+    "uppercase lowercase titlecase",
+)
+
+unicode_data = {}  # code point -> UnicodeRecord
 
 
-def _parse_hex_or_none(text):
-    return int(text, 16) if text else None
+def decomp_type_enum(tag):
+    suffix = "NoBreak" if tag == "noBreak" else tag.capitalize()
+    return "Unitables_DecompType_" + suffix
 
 
-def _parse_fields(fields):
-    decomp_type, decomp_mapping = _parse_decomposition(fields[5])
-    return CharProps(
-        category=fields[2],
+def parse_decomposition(text):
+    if not text:
+        return "0", None
+    parts = text.split()
+    if parts[0].startswith("<"):
+        return decomp_type_enum(parts[0][1:-1]), [int(p, 16) for p in parts[1:]]
+    return "0", [int(p, 16) for p in parts]
+
+
+def parse_mapping(text):
+    return [int(text, 16)] if text else None
+
+
+def parse_unicode_record(fields):
+    decomp_type, decomp = parse_decomposition(fields[5])
+    return UnicodeRecord(
+        category="Unitables_Category_" + fields[2],
         combining_class=int(fields[3]),
-        bidi_class=fields[4],
+        bidi_class="Unitables_BidiClass_" + fields[4],
         decomp_type=decomp_type,
-        decomp_mapping=decomp_mapping,
-        uppercase_mapping=_parse_hex_or_none(fields[12]),
-        lowercase_mapping=_parse_hex_or_none(fields[13]),
-        titlecase_mapping=_parse_hex_or_none(fields[14]),
+        decomp=decomp,
+        uppercase=parse_mapping(fields[12]),
+        lowercase=parse_mapping(fields[13]),
+        titlecase=parse_mapping(fields[14]),
     )
 
 
-def _parse_decomposition(field_text):
-    """Split a decomposition field into (decomp_type, [code points])."""
-    if not field_text:
-        return None, None
-    tokens = field_text.split()
-    decomp_type = None
-    if tokens[0].startswith("<"):
-        tag = tokens[0][1:-1]  # strip the surrounding < >
-        decomp_type = DECOMP_TYPE_SUFFIX[tag]
-        tokens = tokens[1:]
-    return decomp_type, [int(t, 16) for t in tokens]
+lines = unicode_data_path.read_text(encoding="utf-8").splitlines()
+i = 0
+while i < len(lines):
+    fields = lines[i].split(";")
+    i += 1
+    code, name = int(fields[0], 16), fields[1]
+    record = parse_unicode_record(fields)
+    if name.endswith(", First>"):  # range pair: fill through the ", Last>" line
+        last = int(lines[i].split(";")[0], 16)
+        i += 1
+        for cp in range(code, last + 1):
+            unicode_data[cp] = record
+    else:
+        unicode_data[code] = record
 
 
-def _utf16_encode(seq):
-    """Encode a list of UTF-32 code points as a list of UTF-16 code units."""
-    out = []
-    for cp in seq:
-        if cp <= 0xFFFF:
-            out.append(cp)
-        else:
-            c = cp - 0x10000
-            out.append(0xD800 + (c >> 10))
-            out.append(0xDC00 + (c & 0x3FF))
-    return out
+# =============================================================================
+# PRODUCE  UNITABLES_SEQUENCES + UNITABLES_PROPERTIES
+# =============================================================================
+# All decomposition/case mappings share one deduplicated UTF-16 array. A seqindex
+# packs the storage offset (low 14 bits) and the decoded length-1 (top 2 bits; 3
+# means the length is stored inline as the first unit). BMP code points take one
+# unit, non-BMP a surrogate pair. Property structs are deduplicated too; index 0
+# is the unassigned/out-of-range sentinel.
+
+sequences = []
+sequence_offsets = {}
 
 
-class SequenceTable:
-    """One shared, deduplicated array of UTF-16 code units.
-
-    encode() returns a uint16 seqindex packing the storage offset in the low 14
-    bits and the decoded length in the top 2 bits (len-1, or 3 meaning "the
-    length is stored as the first unit of the sequence"). SEQ_NONE marks the
-    absence of a mapping.
-    """
-
-    def __init__(self):
-        self.storage = []
-        self._indices = {}
-
-    def encode(self, seq):
-        if not seq:
-            return SEQ_NONE
-        lencode = len(seq) - 1
-        units = _utf16_encode(seq)
-        key = tuple(units)
-        idx = self._indices.get(key)
-        if idx is None:
-            idx = len(self.storage)
-            if lencode >= 3:
-                self.storage.append(lencode)
-            self.storage.extend(units)
-            self._indices[key] = idx
-        assert idx <= 0x3FFF, "sequence storage exceeds the 14-bit seqindex range"
-        return idx | (min(lencode, 3) << 14)
-
-
-def _seq(seq_table, mapping):
-    """Encode a single optional code point or list of code points."""
+def encode_sequence(mapping):
     if mapping is None:
         return SEQ_NONE
-    if isinstance(mapping, int):
-        mapping = [mapping]
-    return seq_table.encode(mapping)
+    units = []
+    for cp in mapping:
+        if cp <= 0xFFFF:
+            units.append(cp)
+        else:
+            cp -= 0x10000
+            units += [0xD800 + (cp >> 10), 0xDC00 + (cp & 0x3FF)]
+    length = len(mapping) - 1
+    block = [length, *units] if length >= 3 else units
+    offset = intern(sequences, sequence_offsets, tuple(units), block)
+    assert offset <= 0x3FFF, "sequence storage exceeds the 14-bit seqindex range"
+    return offset | (min(length, 3) << 14)
 
 
-def build_tables(records):
-    """Turn parsed records into the four C tables.
+SENTINEL = ("Unitables_Category_Cn", 0, "0", "0", SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE)
+properties = [SENTINEL]
+property_indices = {SENTINEL: 0}
+char_index = [0] * MAX_CODEPOINT
 
-    Returns (sequences, stage1, stage2, properties) where properties[0] is the
-    shared unassigned/out-of-range sentinel.
-    """
-    seq_table = SequenceTable()
-
-    # Sentinel for unassigned and out-of-range code points.
-    sentinel = ("Unitables_Category_Cn", 0, "0", "0", SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE)
-    properties = [sentinel]
-    index_map = {sentinel: 0}
-
-    char_property_indices = [0] * MAX_CODEPOINT
-    for code in sorted(records):
-        cp = records[code]
-        entry = (
-            "Unitables_Category_" + cp.category,
-            cp.combining_class,
-            "Unitables_BidiClass_" + cp.bidi_class,
-            "Unitables_DecompType_" + cp.decomp_type if cp.decomp_type else "0",
-            _seq(seq_table, cp.decomp_mapping),
-            _seq(seq_table, cp.uppercase_mapping),
-            _seq(seq_table, cp.lowercase_mapping),
-            _seq(seq_table, cp.titlecase_mapping),
-        )
-        idx = index_map.get(entry)
-        if idx is None:
-            idx = len(properties)
-            properties.append(entry)
-            index_map[entry] = idx
-        char_property_indices[code] = idx
-
-    stage1, stage2 = _page_compress(char_property_indices)
-
-    assert max(stage1) <= 0xFFFF, "stage1 offset exceeds uint16"
-    assert max(stage2) <= 0xFFFF, "property index exceeds uint16"
-
-    return seq_table.storage, stage1, stage2, properties
+for code in sorted(unicode_data):
+    rec = unicode_data[code]
+    entry = (
+        rec.category,
+        rec.combining_class,
+        rec.bidi_class,
+        rec.decomp_type,
+        encode_sequence(rec.decomp),
+        encode_sequence(rec.uppercase),
+        encode_sequence(rec.lowercase),
+        encode_sequence(rec.titlecase),
+    )
+    char_index[code] = intern(properties, property_indices, entry, [entry])
 
 
-def _page_compress(char_property_indices):
-    """Split the per-code-point index array into PAGE_SIZE pages and dedup them.
+# =============================================================================
+# PRODUCE  UNITABLES_STAGE1 + UNITABLES_STAGE2
+# =============================================================================
+# Page-compress char_index. stage1[cp>>8] is the base of cp's page within stage2,
+# so the runtime lookup is stage2[stage1[cp>>8] + (cp & 0xFF)].
 
-    stage1[cp >> 8] gives the base offset of cp's page within stage2, so the
-    final lookup is stage2[stage1[cp >> 8] + (cp & 0xFF)].
-    """
-    stage1 = []
-    stage2 = []
-    page_map = {}
-    for start in range(0, MAX_CODEPOINT, PAGE_SIZE):
-        page = tuple(char_property_indices[start:start + PAGE_SIZE])
-        base = page_map.get(page)
-        if base is None:
-            base = len(stage2)
-            stage2.extend(page)
-            page_map[page] = base
-        stage1.append(base)
-    return stage1, stage2
+stage1 = []
+stage2 = []
+page_offsets = {}
+for start in range(0, MAX_CODEPOINT, PAGE_SIZE):
+    page = tuple(char_index[start : start + PAGE_SIZE])
+    stage1.append(intern(stage2, page_offsets, page, page))
+
+assert max(stage1) <= 0xFFFF, "stage1 offset exceeds uint16"
+assert max(stage2) <= 0xFFFF, "property index exceeds uint16"
 
 
-def _format_uint16_array(name, values, per_line=12):
-    out = [f"static uint16_t const {name}[] = {{"]
-    for start in range(0, len(values), per_line):
-        chunk = values[start:start + per_line]
-        out.append("  " + ", ".join(str(v) for v in chunk) + ",")
-    out.append("};")
-    return "\n".join(out)
+# =============================================================================
+# EMIT  unitables_data.c
+# =============================================================================
 
 
-def _format_seq(value):
+def format_seq(value):
     return "UINT16_MAX" if value == SEQ_NONE else str(value)
 
 
-def _format_properties(properties):
-    out = ["static struct Unitables_Properties const UNITABLES_PROPERTIES[] = {"]
-    for cat, ccc, bidi, decomp, dseq, useq, lseq, tseq in properties:
-        out.append(
-            "  { %s, %d, %s, %s, %s, %s, %s, %s },"
-            % (cat, ccc, bidi, decomp,
-               _format_seq(dseq), _format_seq(useq), _format_seq(lseq), _format_seq(tseq))
-        )
-    out.append("};")
-    return "\n".join(out)
+def uint16_array(name, values):
+    rows = [", ".join(map(str, values[i : i + 12])) for i in range(0, len(values), 12)]
+    return "static uint16_t const %s[] = {\n  %s,\n};" % (name, ",\n  ".join(rows))
 
 
-def emit(path, sequences, stage1, stage2, properties):
-    blocks = [
-        "/* Generated by unitables.py from UnicodeData.txt. Do not edit. */",
-        _format_uint16_array("UNITABLES_SEQUENCES", sequences),
-        _format_uint16_array("UNITABLES_STAGE1", stage1),
-        _format_uint16_array("UNITABLES_STAGE2", stage2),
-        _format_properties(properties),
-    ]
-    path.write_text("\n\n".join(blocks) + "\n", encoding="utf-8")
+def property_row(entry):
+    category, combining_class, bidi_class, decomp_type, *seqs = entry
+    fields = [category, str(combining_class), bidi_class, decomp_type]
+    fields += [format_seq(s) for s in seqs]
+    return "  { %s }," % ", ".join(fields)
 
 
-def main():
-    records = parse_unicode_data(UNICODE_DATA_PATH)
-    sequences, stage1, stage2, properties = build_tables(records)
-    emit(UNITABLES_DATA_C, sequences, stage1, stage2, properties)
+properties_block = (
+    "static struct Unitables_Properties const UNITABLES_PROPERTIES[] = {\n"
+    + "\n".join(property_row(e) for e in properties)
+    + "\n};"
+)
 
-
-if __name__ == "__main__":
-    main()
+blocks = [
+    "/* Generated by unitables.py from UnicodeData.txt. Do not edit. */",
+    uint16_array("UNITABLES_SEQUENCES", sequences),
+    uint16_array("UNITABLES_STAGE1", stage1),
+    uint16_array("UNITABLES_STAGE2", stage2),
+    properties_block,
+]
+out_path.write_text("\n\n".join(blocks) + "\n", encoding="utf-8")
