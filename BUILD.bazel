@@ -9,7 +9,7 @@ py_binary(
 
 GENERATOR_ARGS = [
     "$(location :unitables_generator)",
-    "$(@D)",
+    "$(RULEDIR)",
     "$(location @unicode_data//file)",
 ]
 
