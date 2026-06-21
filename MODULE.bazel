@@ -1,0 +1,15 @@
+module(name = "unitables")
+
+bazel_dep(name = "rules_cc", version = "0.2.19")
+bazel_dep(name = "rules_python", version = "2.1.0-rc0")
+
+UNICODE_BASE = "https://unicode.org/Public/"
+UNICODE_VERSION = "17.0.0"
+
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+http_file(
+    name = "unicode_data",
+    urls = ["%s/%s/ucd/UnicodeData.txt" % (UNICODE_BASE, UNICODE_VERSION)],
+    sha256 = "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
+    
+)

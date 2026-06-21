@@ -1,0 +1,35 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_python//python:defs.bzl", "py_binary")
+
+py_binary(
+    name = "unitables_generator",
+    srcs = ["unitables.py"],
+    main = "unitables.py",
+)
+
+GENERATOR_ARGS = [
+    "$(location :unitables_generator)",
+    "$(@D)",
+    "$(location @unicode_data//file)",
+]
+
+genrule(
+    name = "generate_unitables",
+    srcs = [
+      "@unicode_data//file"
+    ],
+    outs = [
+        "unitables.cc",
+        "unitables.h",
+    ],
+    tools = [":unitables_generator"],
+    cmd = " ".join(GENERATOR_ARGS),
+)
+
+cc_library(
+    name = "unitables",
+    textual_hdrs = ["unitables_data.h"],
+    srcs = ["unitables.c"],
+    hdrs = ["unitables.h"],
+    visibility = ["//visibility:public"],
+)
