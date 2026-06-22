@@ -93,6 +93,37 @@ enum
   Unitables_DecompType_Compat,
 };
 
+typedef uint8_t Unitables_Boundclass;
+enum
+{
+  Unitables_Boundclass_Start = 0,
+  Unitables_Boundclass_Other,
+  Unitables_Boundclass_CR,
+  Unitables_Boundclass_LF,
+  Unitables_Boundclass_Control,
+  Unitables_Boundclass_Extend,
+  Unitables_Boundclass_L,
+  Unitables_Boundclass_V,
+  Unitables_Boundclass_T,
+  Unitables_Boundclass_LV,
+  Unitables_Boundclass_LVT,
+  Unitables_Boundclass_Regional_Indicator,
+  Unitables_Boundclass_SpacingMark,
+  Unitables_Boundclass_Prepend,
+  Unitables_Boundclass_ZWJ,
+  Unitables_Boundclass_Extended_Pictographic,
+  Unitables_Boundclass_E_ZWG
+};
+
+typedef uint8_t Unitables_IndicConjunctBreak;
+enum
+{
+  Unitables_IndicConjunctBreak_None = 0,
+  Unitables_IndicConjunctBreak_Linker,
+  Unitables_IndicConjunctBreak_Consonant,
+  Unitables_IndicConjunctBreak_Extend
+};
+
 /* Value of any *_seqindex field when the code point has no such mapping. */
 #define UNITABLES_SEQ_NONE UINT16_MAX
 /* Value of comb_index when the code point cannot begin a combining pair. */
@@ -100,8 +131,9 @@ enum
 /* Value of any code point field when the code point is invalid. */
 #define UNITABLES_INVALID_CODEPOINT INT32_C(-1)
 
-/* Note: we only process UnicodeData.txt, CompositionExclusions.txt, and
-CaseFolding.txt for now, so the provided properties are not complete. */
+/* Note: we process UnicodeData.txt, CompositionExclusions.txt,
+CaseFolding.txt, GraphemeBreakProperty.txt, emoji-data.txt, and
+DerivedCoreProperties.txt. */
 struct Unitables_Properties
 {
   /* Describes what kind of character this is, how it combines with
@@ -128,6 +160,10 @@ struct Unitables_Properties
   uint16_t comb_index : 10;
   uint16_t comb_length : 5;
   uint16_t comb_issecond : 1;
+
+  /* Grapheme cluster boundary class (UAX #29). */
+  Unitables_Boundclass boundclass;
+  Unitables_IndicConjunctBreak indic_conjunct_break;
 };
 
 /* Returns the Unicode properties for codepoint. Invalid, out-of-range, and
@@ -172,6 +208,15 @@ input code point is written back. This is a table lookup for one code point; it
 does not process strings and does not apply Turkic case folding rules. */
 uint32_t unitables_casefold(Unitables_Codepoint codepoint,
                             Unitables_Codepoint* dst, uint32_t dst_cap);
+
+/* Given a pair of consecutive code points, returns whether a grapheme cluster
+break is permitted between them (UAX #29 extended grapheme clusters). state
+must point to a uint32_t initialized to 0 at the start of the string; it
+tracks context needed for GB9c/GB11/GB12/GB13. If state is NULL, those rules
+are not applied. */
+uint8_t unitables_grapheme_break(Unitables_Codepoint codepoint1,
+                                 Unitables_Codepoint codepoint2,
+                                 uint32_t* state);
 
 #if defined(__cplusplus)
 }

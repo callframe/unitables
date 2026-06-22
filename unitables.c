@@ -291,3 +291,152 @@ Unitables_Codepoint unitables_compose(Unitables_Codepoint starter,
 
   return UNITABLES_INVALID_CODEPOINT;
 }
+
+static uint8_t unitables_grapheme_break_simple(uint8_t lbc, uint8_t tbc)
+{
+  /* GB1 */
+  if (lbc == Unitables_Boundclass_Start)
+  {
+    return 1;
+  }
+  /* GB3 */
+  if (lbc == Unitables_Boundclass_CR && tbc == Unitables_Boundclass_LF)
+  {
+    return 0;
+  }
+  /* GB4 */
+  if (lbc >= Unitables_Boundclass_CR && lbc <= Unitables_Boundclass_Control)
+  {
+    return 1;
+  }
+  /* GB5 */
+  if (tbc >= Unitables_Boundclass_CR && tbc <= Unitables_Boundclass_Control)
+  {
+    return 1;
+  }
+  /* GB6 */
+  if (lbc == Unitables_Boundclass_L &&
+      (tbc == Unitables_Boundclass_L || tbc == Unitables_Boundclass_V ||
+       tbc == Unitables_Boundclass_LV || tbc == Unitables_Boundclass_LVT))
+  {
+    return 0;
+  }
+  /* GB7 */
+  if ((lbc == Unitables_Boundclass_LV || lbc == Unitables_Boundclass_V) &&
+      (tbc == Unitables_Boundclass_V || tbc == Unitables_Boundclass_T))
+  {
+    return 0;
+  }
+  /* GB8 */
+  if ((lbc == Unitables_Boundclass_LVT || lbc == Unitables_Boundclass_T) &&
+      tbc == Unitables_Boundclass_T)
+  {
+    return 0;
+  }
+  /* GB9/GB9a/GB9b */
+  if (tbc == Unitables_Boundclass_Extend || tbc == Unitables_Boundclass_ZWJ ||
+      tbc == Unitables_Boundclass_SpacingMark ||
+      lbc == Unitables_Boundclass_Prepend)
+  {
+    return 0;
+  }
+  /* GB11 */
+  if (lbc == Unitables_Boundclass_E_ZWG &&
+      tbc == Unitables_Boundclass_Extended_Pictographic)
+  {
+    return 0;
+  }
+  /* GB12/13 */
+  if (lbc == Unitables_Boundclass_Regional_Indicator &&
+      tbc == Unitables_Boundclass_Regional_Indicator)
+  {
+    return 0;
+  }
+  /* GB999 */
+  return 1;
+}
+
+static uint8_t unitables_icb_next(uint8_t state_icb, uint8_t ticb)
+{
+  if (ticb == Unitables_IndicConjunctBreak_Consonant ||
+      state_icb == Unitables_IndicConjunctBreak_Consonant ||
+      state_icb == Unitables_IndicConjunctBreak_Extend)
+  {
+    return ticb;
+  }
+  if (state_icb == Unitables_IndicConjunctBreak_Linker &&
+      ticb == Unitables_IndicConjunctBreak_Extend)
+  {
+    return Unitables_IndicConjunctBreak_Linker;
+  }
+  if (state_icb == Unitables_IndicConjunctBreak_Linker)
+  {
+    return ticb;
+  }
+  return state_icb;
+}
+
+static uint8_t unitables_boundclass_next(uint8_t state_bc, uint8_t tbc)
+{
+  /* GB12/13: reset after two consecutive RIs */
+  if (state_bc == Unitables_Boundclass_Regional_Indicator &&
+      tbc == Unitables_Boundclass_Regional_Indicator)
+  {
+    return Unitables_Boundclass_Other;
+  }
+  /* GB11: ExtPict absorbs Extend, becomes E_ZWG on ZWJ */
+  if (state_bc == Unitables_Boundclass_Extended_Pictographic)
+  {
+    if (tbc == Unitables_Boundclass_Extend)
+    {
+      return Unitables_Boundclass_Extended_Pictographic;
+    }
+    if (tbc == Unitables_Boundclass_ZWJ)
+    {
+      return Unitables_Boundclass_E_ZWG;
+    }
+  }
+  return tbc;
+}
+
+uint8_t unitables_grapheme_break(Unitables_Codepoint codepoint1,
+                                 Unitables_Codepoint codepoint2,
+                                 uint32_t* state)
+{
+  struct Unitables_Properties const* p1 = unitables_properties(codepoint1);
+  struct Unitables_Properties const* p2 = unitables_properties(codepoint2);
+
+  if (!state)
+  {
+    return unitables_grapheme_break_simple(p1->boundclass, p2->boundclass);
+  }
+
+  uint8_t tbc = p2->boundclass;
+  uint8_t ticb = p2->indic_conjunct_break;
+
+  uint8_t state_bc;
+  uint8_t state_icb;
+  if (*state == 0)
+  {
+    state_bc = p1->boundclass;
+    state_icb =
+        p1->indic_conjunct_break == Unitables_IndicConjunctBreak_Consonant
+            ? Unitables_IndicConjunctBreak_Consonant
+            : Unitables_IndicConjunctBreak_None;
+  }
+  else
+  {
+    /* Unpack: low byte = previous boundclass, high byte = InCB state. */
+    state_bc = *state & 0xFF;
+    state_icb = (*state >> 8) & 0xFF;
+  }
+
+  /* GB9c: no break between consonants linked by a linker */
+  uint8_t permitted = unitables_grapheme_break_simple(state_bc, tbc) &&
+                      !(state_icb == Unitables_IndicConjunctBreak_Linker &&
+                        ticb == Unitables_IndicConjunctBreak_Consonant);
+
+  *state = (uint32_t)unitables_boundclass_next(state_bc, tbc) |
+           ((uint32_t)unitables_icb_next(state_icb, ticb) << 8);
+  return permitted;
+}

@@ -8,16 +8,20 @@ import sys
 from collections import namedtuple
 from pathlib import Path
 
-if len(sys.argv) != 5:
+if len(sys.argv) != 8:
     sys.exit(
         "Usage: python unitables.py <output_dir> <unicode_data> "
-        "<composition_exclusions> <case_folding>"
+        "<composition_exclusions> <case_folding> <grapheme_break_property> "
+        "<emoji_data> <derived_core_properties>"
     )
 
 out_path = Path(sys.argv[1]) / "unitables_data.c"
 unicode_data_path = Path(sys.argv[2])
 composition_exclusions_path = Path(sys.argv[3])
 case_folding_path = Path(sys.argv[4])
+grapheme_break_property_path = Path(sys.argv[5])
+emoji_data_path = Path(sys.argv[6])
+derived_core_properties_path = Path(sys.argv[7])
 
 MAX_CODEPOINT = 0x110000
 PAGE_SIZE = 0x100
@@ -110,19 +114,86 @@ for line in composition_exclusions_path.read_text(encoding="utf-8").splitlines()
 # PROCESS  CaseFolding.txt
 # =============================================================================
 
+
+def parse_ucd(path):
+    """Parse a UCD semicolon-delimited file. Yields (first, last, fields)
+    where fields is a list of stripped strings after the code point range."""
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.split("#")[0].strip()
+        if not line:
+            continue
+        fields = [f.strip() for f in line.split(";")]
+        rng = fields[0]
+        if ".." in rng:
+            first, last = rng.split("..")
+            first, last = int(first, 16), int(last, 16)
+        else:
+            first = last = int(rng, 16)
+        yield first, last, fields[1:]
+
+
 casefold = {}
-for line in case_folding_path.read_text(encoding="utf-8").splitlines():
-    line = line.split("#")[0].strip()
-    if not line:
-        continue
+for first, last, fields in parse_ucd(case_folding_path):
+    if fields[0] in ("C", "F"):
+        mapping = [int(part, 16) for part in fields[1].split()]
+        for cp in range(first, last + 1):
+            casefold[cp] = mapping
 
-    fields = [field.strip() for field in line.split(";")]
-    code = int(fields[0], 16)
-    status = fields[1]
-    mapping = [int(part, 16) for part in fields[2].split()]
 
-    if status in ("C", "F"):
-        casefold[code] = mapping
+# =============================================================================
+# PROCESS  GraphemeBreakProperty.txt + emoji-data.txt
+# =============================================================================
+
+BOUNDCLASS_MAP = {
+    "OTHER": "Unitables_Boundclass_Other",
+    "CR": "Unitables_Boundclass_CR",
+    "LF": "Unitables_Boundclass_LF",
+    "CONTROL": "Unitables_Boundclass_Control",
+    "EXTEND": "Unitables_Boundclass_Extend",
+    "L": "Unitables_Boundclass_L",
+    "V": "Unitables_Boundclass_V",
+    "T": "Unitables_Boundclass_T",
+    "LV": "Unitables_Boundclass_LV",
+    "LVT": "Unitables_Boundclass_LVT",
+    "REGIONAL_INDICATOR": "Unitables_Boundclass_Regional_Indicator",
+    "SPACINGMARK": "Unitables_Boundclass_SpacingMark",
+    "PREPEND": "Unitables_Boundclass_Prepend",
+    "ZWJ": "Unitables_Boundclass_ZWJ",
+    "EXTENDED_PICTOGRAPHIC": "Unitables_Boundclass_Extended_Pictographic",
+}
+
+grapheme_boundclass = {}
+
+for first, last, fields in parse_ucd(grapheme_break_property_path):
+    key = fields[0].upper().replace(" ", "")
+    for cp in range(first, last + 1):
+        grapheme_boundclass[cp] = BOUNDCLASS_MAP[key]
+
+for first, last, fields in parse_ucd(emoji_data_path):
+    if fields[0] == "Extended_Pictographic":
+        for cp in range(first, last + 1):
+            grapheme_boundclass[cp] = "Unitables_Boundclass_Extended_Pictographic"
+    elif fields[0] == "Emoji_Modifier":
+        for cp in range(first, last + 1):
+            grapheme_boundclass[cp] = "Unitables_Boundclass_Extend"
+
+
+# =============================================================================
+# PROCESS  DerivedCoreProperties.txt  (InCB = Indic_Conjunct_Break)
+# =============================================================================
+
+INDIC_CONJUNCT_BREAK_MAP = {
+    "Linker": "Unitables_IndicConjunctBreak_Linker",
+    "Consonant": "Unitables_IndicConjunctBreak_Consonant",
+    "Extend": "Unitables_IndicConjunctBreak_Extend",
+}
+
+indic_conjunct_break = {}
+
+for first, last, fields in parse_ucd(derived_core_properties_path):
+    if len(fields) >= 2 and fields[0] == "InCB" and fields[1] in INDIC_CONJUNCT_BREAK_MAP:
+        for cp in range(first, last + 1):
+            indic_conjunct_break[cp] = INDIC_CONJUNCT_BREAK_MAP[fields[1]]
 
 
 # =============================================================================
@@ -187,6 +258,7 @@ SENTINEL = (
     "Unitables_Category_Cn", 0, "0", "0",
     SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE,
     COMB_NONE, 0, 0,
+    "Unitables_Boundclass_Other", "Unitables_IndicConjunctBreak_None",
 )
 properties = [SENTINEL]
 property_indices = {SENTINEL: 0}
@@ -207,6 +279,8 @@ for code in sorted(unicode_data):
         comb_index.get(code, COMB_NONE),
         comb_length.get(code, 0),
         1 if code in comb_issecond else 0,
+        grapheme_boundclass.get(code, "Unitables_Boundclass_Other"),
+        indic_conjunct_break.get(code, "Unitables_IndicConjunctBreak_None"),
     )
     char_index[code] = intern(properties, property_indices, entry, [entry])
 
@@ -244,13 +318,15 @@ def c_array(ctype, name, values):
 def property_row(entry):
     category, combining_class, bidi_class, decomp_type = entry[:4]
     dseq, cfseq, useq, lseq, tseq = entry[4:9]
-    comb_idx, comb_len, comb_2nd = entry[9:]
+    comb_idx, comb_len, comb_2nd = entry[9:12]
+    boundclass, icb = entry[12:14]
     comb_idx = "UNITABLES_COMB_NONE" if comb_idx == COMB_NONE else str(comb_idx)
     fields = [
         category, str(combining_class), bidi_class, decomp_type,
         format_seq(dseq), format_seq(cfseq), format_seq(useq),
         format_seq(lseq), format_seq(tseq),
         comb_idx, str(comb_len), str(comb_2nd),
+        boundclass, icb,
     ]
     return "  { %s }," % ", ".join(fields)
 
@@ -262,8 +338,9 @@ properties_block = (
 )
 
 blocks = [
-    "/* Generated by unitables.py from UnicodeData.txt and "
-    "CompositionExclusions.txt and CaseFolding.txt. Do not edit. */",
+    "/* Generated by unitables.py from UnicodeData.txt, "
+    "CompositionExclusions.txt, CaseFolding.txt, GraphemeBreakProperty.txt, "
+    "emoji-data.txt, and DerivedCoreProperties.txt. Do not edit. */",
     c_array("uint16_t", "UNITABLES_SEQUENCES", sequences),
     c_array("uint16_t", "UNITABLES_STAGE1", stage1),
     c_array("uint16_t", "UNITABLES_STAGE2", stage2),

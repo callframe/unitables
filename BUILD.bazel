@@ -13,6 +13,9 @@ GENERATOR_ARGS = [
     "$(location @unicode_data//file)",
     "$(location @composition_exclusions//file)",
     "$(location @case_folding//file)",
+    "$(location @grapheme_break_property//file)",
+    "$(location @emoji_data//file)",
+    "$(location @derived_core_properties//file)",
 ]
 
 genrule(
@@ -21,6 +24,9 @@ genrule(
         "@unicode_data//file",
         "@composition_exclusions//file",
         "@case_folding//file",
+        "@grapheme_break_property//file",
+        "@emoji_data//file",
+        "@derived_core_properties//file",
     ],
     outs = [
         "unitables_data.c",
