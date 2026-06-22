@@ -100,12 +100,12 @@ enum
 /* Value of any code point field when the code point is invalid. */
 #define UNITABLES_INVALID_CODEPOINT INT32_C(-1)
 
-/* Note: we only process UnicodeData.txt and CompositionExclusions.txt for
-now, so the provided properties are not complete.*/
+/* Note: we only process UnicodeData.txt, CompositionExclusions.txt, and
+CaseFolding.txt for now, so the provided properties are not complete. */
 struct Unitables_Properties
 {
   /* Describes what kind of character this is, how it combines with
-  neighboring characters, and how it behaves in bidirectional text.*/
+  neighboring characters, and how it behaves in bidirectional text. */
   Unitables_Category category;
   uint8_t combining_class;
   Unitables_BidiClass bidi_class;
@@ -114,8 +114,9 @@ struct Unitables_Properties
   Unitables_DecompType decomp_type;
   uint16_t decomp_seqindex;
 
-  /* Describes how this code point maps during case folding and
-  case conversion operations. */
+  /* Describes how this code point maps during case folding and case
+  conversion operations. */
+  uint16_t casefold_seqindex;
   uint16_t uppercase_seqindex;
   uint16_t lowercase_seqindex;
   uint16_t titlecase_seqindex;
@@ -149,6 +150,28 @@ uint32_t unitables_decompose(Unitables_Codepoint codepoint,
 or UNITABLES_INVALID_CODEPOINT if the two do not compose. Handles Hangul. */
 Unitables_Codepoint unitables_compose(Unitables_Codepoint starter,
                                       Unitables_Codepoint following);
+
+/* Returns the simple uppercase mapping of codepoint, or codepoint if there is
+no uppercase mapping. This is a one-code-point table lookup and does not apply
+context-sensitive SpecialCasing.txt rules. */
+Unitables_Codepoint unitables_toupper(Unitables_Codepoint codepoint);
+
+/* Returns the simple lowercase mapping of codepoint, or codepoint if there is
+no lowercase mapping. This is a one-code-point table lookup and does not apply
+context-sensitive SpecialCasing.txt rules. */
+Unitables_Codepoint unitables_tolower(Unitables_Codepoint codepoint);
+
+/* Returns the simple titlecase mapping of codepoint, or codepoint if there is
+no titlecase mapping. This is a one-code-point table lookup and does not apply
+context-sensitive SpecialCasing.txt rules. */
+Unitables_Codepoint unitables_totitle(Unitables_Codepoint codepoint);
+
+/* Writes the default full case folding of codepoint into dst and returns the
+number of code points the mapping needs. If the code point has no mapping, the
+input code point is written back. This is a table lookup for one code point; it
+does not process strings and does not apply Turkic case folding rules. */
+uint32_t unitables_casefold(Unitables_Codepoint codepoint,
+                            Unitables_Codepoint* dst, uint32_t dst_cap);
 
 #if defined(__cplusplus)
 }

@@ -12,6 +12,7 @@ GENERATOR_ARGS = [
     "$(RULEDIR)",
     "$(location @unicode_data//file)",
     "$(location @composition_exclusions//file)",
+    "$(location @case_folding//file)",
 ]
 
 genrule(
@@ -19,6 +20,7 @@ genrule(
     srcs = [
         "@unicode_data//file",
         "@composition_exclusions//file",
+        "@case_folding//file",
     ],
     outs = [
         "unitables_data.c",

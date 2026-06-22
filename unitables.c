@@ -97,6 +97,35 @@ static inline uint32_t unitables_append(Unitables_Codepoint codepoint,
   return count + 1;
 }
 
+static uint32_t unitables_write_sequence(uint16_t seqindex,
+                                         Unitables_Codepoint* dst,
+                                         uint32_t dst_cap)
+{
+  uint32_t length;
+  uint16_t const* unit = unitables_sequence(seqindex, &length);
+
+  for (uint32_t i = 0; i < length; i++)
+  {
+    Unitables_Codepoint codepoint = unitables_decode_unit(&unit);
+    if (i < dst_cap)
+    {
+      dst[i] = codepoint;
+    }
+    unit++;
+  }
+
+  return length;
+}
+
+static Unitables_Codepoint unitables_decode_sequence_first(uint16_t seqindex)
+{
+  uint32_t length;
+  uint16_t const* unit = unitables_sequence(seqindex, &length);
+  (void)length;
+
+  return unitables_decode_unit(&unit);
+}
+
 static inline uint32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
                                                   Unitables_Codepoint* dst,
                                                   uint32_t dst_cap,
@@ -164,6 +193,7 @@ uint32_t unitables_decompose(Unitables_Codepoint codepoint,
   {
     return unitables_append(codepoint, dst, dst_cap, 0);
   }
+
   return unitables_decompose_into(codepoint, dst, dst_cap, 0, compatibility);
 }
 
@@ -191,6 +221,44 @@ static Unitables_Codepoint unitables_compose_hangul(
   }
 
   return UNITABLES_INVALID_CODEPOINT;
+}
+
+Unitables_Codepoint unitables_toupper(Unitables_Codepoint codepoint)
+{
+  uint16_t seqindex = unitables_properties(codepoint)->uppercase_seqindex;
+  return seqindex == UNITABLES_SEQ_NONE
+             ? codepoint
+             : unitables_decode_sequence_first(seqindex);
+}
+
+Unitables_Codepoint unitables_tolower(Unitables_Codepoint codepoint)
+{
+  uint16_t seqindex = unitables_properties(codepoint)->lowercase_seqindex;
+  return seqindex == UNITABLES_SEQ_NONE
+             ? codepoint
+             : unitables_decode_sequence_first(seqindex);
+}
+
+Unitables_Codepoint unitables_totitle(Unitables_Codepoint codepoint)
+{
+  uint16_t seqindex = unitables_properties(codepoint)->titlecase_seqindex;
+  return seqindex == UNITABLES_SEQ_NONE
+             ? codepoint
+             : unitables_decode_sequence_first(seqindex);
+}
+
+uint32_t unitables_casefold(Unitables_Codepoint codepoint,
+                            Unitables_Codepoint* dst, uint32_t dst_cap)
+{
+  struct Unitables_Properties const* properties =
+      unitables_properties(codepoint);
+
+  if (properties->casefold_seqindex == UNITABLES_SEQ_NONE)
+  {
+    return unitables_append(codepoint, dst, dst_cap, 0);
+  }
+
+  return unitables_write_sequence(properties->casefold_seqindex, dst, dst_cap);
 }
 
 Unitables_Codepoint unitables_compose(Unitables_Codepoint starter,

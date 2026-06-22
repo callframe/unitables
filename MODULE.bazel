@@ -29,3 +29,8 @@ http_file(
     sha256 = "2f239196ef3b5b61db5cc476e9bd80f534d15aa1b74e1be1dea5d042a344c85f",
 )
 
+http_file(
+    name = "case_folding",
+    urls = ["%s/%s/ucd/CaseFolding.txt" % (UNICODE_BASE, UNICODE_VERSION)],
+    sha256 = "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183",
+)
