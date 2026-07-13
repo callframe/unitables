@@ -4,24 +4,23 @@ PROCESS blocks read a UCD file into a table keyed by code point; PRODUCE blocks
 combine those into the emitted C arrays. Layout follows utf8proc (see ref/).
 """
 
-import sys
+import argparse
 from collections import namedtuple
 from pathlib import Path
 
-if len(sys.argv) != 8:
-    sys.exit(
-        "Usage: python unitables.py <output_dir> <unicode_data> "
-        "<composition_exclusions> <case_folding> <grapheme_break_property> "
-        "<emoji_data> <derived_core_properties>"
-    )
-
-out_path = Path(sys.argv[1]) / "unitables_data.c"
-unicode_data_path = Path(sys.argv[2])
-composition_exclusions_path = Path(sys.argv[3])
-case_folding_path = Path(sys.argv[4])
-grapheme_break_property_path = Path(sys.argv[5])
-emoji_data_path = Path(sys.argv[6])
-derived_core_properties_path = Path(sys.argv[7])
+parser = argparse.ArgumentParser(
+    description="Generate unitables_data.c from the Unicode Character Database."
+)
+parser.add_argument(
+    "output_dir", type=Path, help="directory to write unitables_data.c into"
+)
+parser.add_argument("--unicode-data", required=True, type=Path)
+parser.add_argument("--composition-exclusions", required=True, type=Path)
+parser.add_argument("--case-folding", required=True, type=Path)
+parser.add_argument("--grapheme-break-property", required=True, type=Path)
+parser.add_argument("--emoji-data", required=True, type=Path)
+parser.add_argument("--derived-core-properties", required=True, type=Path)
+args = parser.parse_args()
 
 MAX_CODEPOINT = 0x110000
 PAGE_SIZE = 0x100
@@ -83,7 +82,7 @@ def parse_unicode_record(fields):
     )
 
 
-lines = unicode_data_path.read_text(encoding="utf-8").splitlines()
+lines = args.unicode_data.read_text(encoding="utf-8").splitlines()
 i = 0
 while i < len(lines):
     fields = lines[i].split(";")
@@ -104,7 +103,7 @@ while i < len(lines):
 # =============================================================================
 
 composition_exclusions = set()
-for line in composition_exclusions_path.read_text(encoding="utf-8").splitlines():
+for line in args.composition_exclusions.read_text(encoding="utf-8").splitlines():
     line = line.split("#")[0].strip()
     if line:
         composition_exclusions.add(int(line, 16))
@@ -133,7 +132,7 @@ def parse_ucd(path):
 
 
 casefold = {}
-for first, last, fields in parse_ucd(case_folding_path):
+for first, last, fields in parse_ucd(args.case_folding):
     if fields[0] in ("C", "F"):
         mapping = [int(part, 16) for part in fields[1].split()]
         for cp in range(first, last + 1):
@@ -164,12 +163,12 @@ BOUNDCLASS_MAP = {
 
 grapheme_boundclass = {}
 
-for first, last, fields in parse_ucd(grapheme_break_property_path):
+for first, last, fields in parse_ucd(args.grapheme_break_property):
     key = fields[0].upper().replace(" ", "")
     for cp in range(first, last + 1):
         grapheme_boundclass[cp] = BOUNDCLASS_MAP[key]
 
-for first, last, fields in parse_ucd(emoji_data_path):
+for first, last, fields in parse_ucd(args.emoji_data):
     if fields[0] == "Extended_Pictographic":
         for cp in range(first, last + 1):
             grapheme_boundclass[cp] = "Unitables_Boundclass_Extended_Pictographic"
@@ -190,7 +189,7 @@ INDIC_CONJUNCT_BREAK_MAP = {
 
 indic_conjunct_break = {}
 
-for first, last, fields in parse_ucd(derived_core_properties_path):
+for first, last, fields in parse_ucd(args.derived_core_properties):
     if len(fields) >= 2 and fields[0] == "InCB" and fields[1] in INDIC_CONJUNCT_BREAK_MAP:
         for cp in range(first, last + 1):
             indic_conjunct_break[cp] = INDIC_CONJUNCT_BREAK_MAP[fields[1]]
@@ -348,4 +347,6 @@ blocks = [
     c_array("int32_t", "UNITABLES_COMBINATIONS_COMBINED", combinations_combined),
     properties_block,
 ]
-out_path.write_text("\n\n".join(blocks) + "\n", encoding="utf-8")
+(args.output_dir / "unitables_data.c").write_text(
+    "\n\n".join(blocks) + "\n", encoding="utf-8"
+)

@@ -5,7 +5,8 @@ UniTables is a small C library that emits lookup tables for Unicode properties (
 ## Commands
 
 - Build the library (also runs the table generator): `bazel build //:unitables`
-- Run the generator standalone: `python unitables.py <output_dir> <path_to_UnicodeData.txt>` → writes `<output_dir>/unitables_data.c`
+- Build with CMake (downloads the UCD files at configure time, then runs the generator): `cmake -B build && cmake --build build`
+- Run the generator standalone: `python unitables.py <output_dir> --unicode-data=... --composition-exclusions=... --case-folding=... --grapheme-break-property=... --emoji-data=... --derived-core-properties=...` → writes `<output_dir>/unitables_data.c`
 - Refresh `compile_commands.json` for clangd/LSP: `./commands.sh` (runs `@hedron_compile_commands//:refresh_all`)
 
 There is no automated test target. To validate generator changes, generate `unitables_data.c` and compare `unitables_properties(cp)` results against the source `UnicodeData.txt` directly (Python's bundled `unicodedata` is an older Unicode version, so it is *not* a valid oracle).

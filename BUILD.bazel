@@ -7,32 +7,27 @@ py_binary(
     main = "unitables.py",
 )
 
-GENERATOR_ARGS = [
-    "$(location :unitables_generator)",
-    "$(RULEDIR)",
-    "$(location @unicode_data//file)",
-    "$(location @composition_exclusions//file)",
-    "$(location @case_folding//file)",
-    "$(location @grapheme_break_property//file)",
-    "$(location @emoji_data//file)",
-    "$(location @derived_core_properties//file)",
-]
+UCD_FILES = {
+    "--unicode-data": "@unicode_data//file",
+    "--composition-exclusions": "@composition_exclusions//file",
+    "--case-folding": "@case_folding//file",
+    "--grapheme-break-property": "@grapheme_break_property//file",
+    "--emoji-data": "@emoji_data//file",
+    "--derived-core-properties": "@derived_core_properties//file",
+}
+
+GENERATOR_CMD = "$(location :unitables_generator) $(RULEDIR) " + " ".join(
+    ["%s=$(location %s)" % (flag, label) for flag, label in UCD_FILES.items()],
+)
 
 genrule(
     name = "generate_unitables",
-    srcs = [
-        "@unicode_data//file",
-        "@composition_exclusions//file",
-        "@case_folding//file",
-        "@grapheme_break_property//file",
-        "@emoji_data//file",
-        "@derived_core_properties//file",
-    ],
+    srcs = UCD_FILES.values(),
     outs = [
         "unitables_data.c",
     ],
     tools = [":unitables_generator"],
-    cmd = " ".join(GENERATOR_ARGS),
+    cmd = GENERATOR_CMD,
 )
 
 cc_library(
