@@ -26,7 +26,7 @@ function(unitables_fetch_ucd flag uri sha256)
   cmake_path(GET uri FILENAME name)
   set(dest "${UNITABLES_UCD_DIR}/${name}")
 
-  file(DOWNLOAD "${uri}" "${dest}"
+  file(DOWNLOAD "${UNITABLES_UCD_URL}/${uri}" "${dest}"
        EXPECTED_HASH SHA256=${sha256} TLS_VERIFY ON STATUS status)
 
   list(GET status 0 code)
@@ -42,27 +42,27 @@ function(unitables_fetch_ucd flag uri sha256)
 endfunction()
 
 unitables_fetch_ucd(unicode-data
-  "${UNITABLES_UCD_URL}/UnicodeData.txt"
+  "UnicodeData.txt"
   2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c)
 
 unitables_fetch_ucd(composition-exclusions
-  "${UNITABLES_UCD_URL}/CompositionExclusions.txt"
+  "CompositionExclusions.txt"
   2f239196ef3b5b61db5cc476e9bd80f534d15aa1b74e1be1dea5d042a344c85f)
 
 unitables_fetch_ucd(case-folding
-  "${UNITABLES_UCD_URL}/CaseFolding.txt"
+  "CaseFolding.txt"
   ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183)
 
 unitables_fetch_ucd(grapheme-break-property
-  "${UNITABLES_UCD_URL}/auxiliary/GraphemeBreakProperty.txt"
+  "auxiliary/GraphemeBreakProperty.txt"
   d6b51d1d2ae5c33b451b7ed994b48f1f4dc62b2272a5831e7fd418514a6bae89)
 
 unitables_fetch_ucd(emoji-data
-  "${UNITABLES_UCD_URL}/emoji/emoji-data.txt"
+  "emoji/emoji-data.txt"
   2cb2bb9455cda83e8481541ecf5b6dfda66a3bb89efa3fa7c5297eccf607b72b)
 
 unitables_fetch_ucd(derived-core-properties
-  "${UNITABLES_UCD_URL}/DerivedCoreProperties.txt"
+  "DerivedCoreProperties.txt"
   24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08)
 
 # ============================================================================
