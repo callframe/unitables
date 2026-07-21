@@ -82,18 +82,15 @@ add_custom_command(
   VERBATIM
 )
 
+add_custom_target(unitables_generate DEPENDS "${UNITABLES_GENERATED_C}")
+
 # ============================================================================
 # Library
 # ============================================================================
 
 add_library(unitables)
 target_sources(unitables PRIVATE "${UNITABLES_DIR}/unitables.c")
-target_sources(unitables PUBLIC
-  FILE_SET HEADERS
-  FILES 
-    "${UNITABLES_DIR}/unitables.h"
-    "${UNITABLES_GENERATED_C}"
-)
+add_dependencies(unitables unitables_generate)
 
 target_compile_features(unitables PUBLIC c_std_99)
 target_include_directories(unitables
