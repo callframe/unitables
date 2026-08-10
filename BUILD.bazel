@@ -5,6 +5,7 @@ py_binary(
     name = "unitables_generator",
     srcs = ["unitables.py"],
     main = "unitables.py",
+    legacy_create_init = 0
 )
 
 UCD_FILES = {

@@ -1,3 +1,5 @@
-bazel-*
-compile_commands.json
+/bazel-*
+/compile_commands.json
+/MODULE.bazel.lock
+
 /build/
