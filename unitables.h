@@ -44,84 +44,84 @@ enum
   Unitables_Category_Co
 };
 
-typedef uint8_t Unitables_BidiClass;
+typedef uint8_t Unitables_Bidi_Class;
 enum
 {
-  Unitables_BidiClass_L = 1,
-  Unitables_BidiClass_LRE,
-  Unitables_BidiClass_LRO,
-  Unitables_BidiClass_R,
-  Unitables_BidiClass_AL,
-  Unitables_BidiClass_RLE,
-  Unitables_BidiClass_RLO,
-  Unitables_BidiClass_PDF,
-  Unitables_BidiClass_EN,
-  Unitables_BidiClass_ES,
-  Unitables_BidiClass_ET,
-  Unitables_BidiClass_AN,
-  Unitables_BidiClass_CS,
-  Unitables_BidiClass_NSM,
-  Unitables_BidiClass_BN,
-  Unitables_BidiClass_B,
-  Unitables_BidiClass_S,
-  Unitables_BidiClass_WS,
-  Unitables_BidiClass_ON,
-  Unitables_BidiClass_LRI,
-  Unitables_BidiClass_RLI,
-  Unitables_BidiClass_FSI,
-  Unitables_BidiClass_PDI
+  Unitables_Bidi_Class_L = 1,
+  Unitables_Bidi_Class_LRE,
+  Unitables_Bidi_Class_LRO,
+  Unitables_Bidi_Class_R,
+  Unitables_Bidi_Class_AL,
+  Unitables_Bidi_Class_RLE,
+  Unitables_Bidi_Class_RLO,
+  Unitables_Bidi_Class_PDF,
+  Unitables_Bidi_Class_EN,
+  Unitables_Bidi_Class_ES,
+  Unitables_Bidi_Class_ET,
+  Unitables_Bidi_Class_AN,
+  Unitables_Bidi_Class_CS,
+  Unitables_Bidi_Class_NSM,
+  Unitables_Bidi_Class_BN,
+  Unitables_Bidi_Class_B,
+  Unitables_Bidi_Class_S,
+  Unitables_Bidi_Class_WS,
+  Unitables_Bidi_Class_ON,
+  Unitables_Bidi_Class_LRI,
+  Unitables_Bidi_Class_RLI,
+  Unitables_Bidi_Class_FSI,
+  Unitables_Bidi_Class_PDI
 };
 
-typedef uint8_t Unitables_DecompType;
+typedef uint8_t Unitables_Decomp_Type;
 enum
 {
-  Unitables_DecompType_Font = 1,
-  Unitables_DecompType_NoBreak,
-  Unitables_DecompType_Initial,
-  Unitables_DecompType_Medial,
-  Unitables_DecompType_Final,
-  Unitables_DecompType_Isolated,
-  Unitables_DecompType_Circle,
-  Unitables_DecompType_Super,
-  Unitables_DecompType_Sub,
-  Unitables_DecompType_Vertical,
-  Unitables_DecompType_Wide,
-  Unitables_DecompType_Narrow,
-  Unitables_DecompType_Small,
-  Unitables_DecompType_Square,
-  Unitables_DecompType_Fraction,
-  Unitables_DecompType_Compat,
+  Unitables_Decomp_Type_Font = 1,
+  Unitables_Decomp_Type_NoBreak,
+  Unitables_Decomp_Type_Initial,
+  Unitables_Decomp_Type_Medial,
+  Unitables_Decomp_Type_Final,
+  Unitables_Decomp_Type_Isolated,
+  Unitables_Decomp_Type_Circle,
+  Unitables_Decomp_Type_Super,
+  Unitables_Decomp_Type_Sub,
+  Unitables_Decomp_Type_Vertical,
+  Unitables_Decomp_Type_Wide,
+  Unitables_Decomp_Type_Narrow,
+  Unitables_Decomp_Type_Small,
+  Unitables_Decomp_Type_Square,
+  Unitables_Decomp_Type_Fraction,
+  Unitables_Decomp_Type_Compat,
 };
 
-typedef uint8_t Unitables_Boundclass;
+typedef uint8_t Unitables_Bound_Class;
 enum
 {
-  Unitables_Boundclass_Start = 0,
-  Unitables_Boundclass_Other,
-  Unitables_Boundclass_CR,
-  Unitables_Boundclass_LF,
-  Unitables_Boundclass_Control,
-  Unitables_Boundclass_Extend,
-  Unitables_Boundclass_L,
-  Unitables_Boundclass_V,
-  Unitables_Boundclass_T,
-  Unitables_Boundclass_LV,
-  Unitables_Boundclass_LVT,
-  Unitables_Boundclass_Regional_Indicator,
-  Unitables_Boundclass_SpacingMark,
-  Unitables_Boundclass_Prepend,
-  Unitables_Boundclass_ZWJ,
-  Unitables_Boundclass_Extended_Pictographic,
-  Unitables_Boundclass_E_ZWG
+  Unitables_Bound_Class_Start = 0,
+  Unitables_Bound_Class_Other,
+  Unitables_Bound_Class_CR,
+  Unitables_Bound_Class_LF,
+  Unitables_Bound_Class_Control,
+  Unitables_Bound_Class_Extend,
+  Unitables_Bound_Class_L,
+  Unitables_Bound_Class_V,
+  Unitables_Bound_Class_T,
+  Unitables_Bound_Class_LV,
+  Unitables_Bound_Class_LVT,
+  Unitables_Bound_Class_Regional_Indicator,
+  Unitables_Bound_Class_SpacingMark,
+  Unitables_Bound_Class_Prepend,
+  Unitables_Bound_Class_ZWJ,
+  Unitables_Bound_Class_Extended_Pictographic,
+  Unitables_Bound_Class_E_ZWG
 };
 
-typedef uint8_t Unitables_IndicConjunctBreak;
+typedef uint8_t Unitables_Indic_Conjunct_Break;
 enum
 {
-  Unitables_IndicConjunctBreak_None = 0,
-  Unitables_IndicConjunctBreak_Linker,
-  Unitables_IndicConjunctBreak_Consonant,
-  Unitables_IndicConjunctBreak_Extend
+  Unitables_Indic_Conjunct_Break_None = 0,
+  Unitables_Indic_Conjunct_Break_Linker,
+  Unitables_Indic_Conjunct_Break_Consonant,
+  Unitables_Indic_Conjunct_Break_Extend
 };
 
 /* Value of any *_seqindex field when the code point has no such mapping. */
@@ -140,10 +140,10 @@ struct Unitables_Properties
   neighboring characters, and how it behaves in bidirectional text. */
   Unitables_Category category;
   uint8_t combining_class;
-  Unitables_BidiClass bidi_class;
+  Unitables_Bidi_Class bidi_class;
 
   /* Describes how this code point decomposes into simpler code points. */
-  Unitables_DecompType decomp_type;
+  Unitables_Decomp_Type decomp_type;
   uint16_t decomp_seqindex;
 
   /* Describes how this code point maps during case folding and case
@@ -162,8 +162,8 @@ struct Unitables_Properties
   uint16_t comb_issecond : 1;
 
   /* Grapheme cluster boundary class (UAX #29). */
-  Unitables_Boundclass boundclass;
-  Unitables_IndicConjunctBreak indic_conjunct_break;
+  Unitables_Bound_Class bound_class;
+  Unitables_Indic_Conjunct_Break indic_conjunct_break;
 };
 
 /* Returns the Unicode properties for codepoint. Invalid, out-of-range, and

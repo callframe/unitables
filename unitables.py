@@ -52,7 +52,7 @@ unicode_data = {}
 
 def decomp_type_enum(tag):
     suffix = "NoBreak" if tag == "noBreak" else tag.capitalize()
-    return "Unitables_DecompType_" + suffix
+    return "Unitables_Decomp_Type_" + suffix
 
 
 def parse_decomposition(text):
@@ -73,7 +73,7 @@ def parse_unicode_record(fields):
     return UnicodeRecord(
         category="Unitables_Category_" + fields[2],
         combining_class=int(fields[3]),
-        bidi_class="Unitables_BidiClass_" + fields[4],
+        bidi_class="Unitables_Bidi_Class_" + fields[4],
         decomp_type=decomp_type,
         decomp=decomp,
         uppercase=parse_mapping(fields[12]),
@@ -143,38 +143,38 @@ for first, last, fields in parse_ucd(args.case_folding):
 # PROCESS  GraphemeBreakProperty.txt + emoji-data.txt
 # =============================================================================
 
-BOUNDCLASS_MAP = {
-    "OTHER": "Unitables_Boundclass_Other",
-    "CR": "Unitables_Boundclass_CR",
-    "LF": "Unitables_Boundclass_LF",
-    "CONTROL": "Unitables_Boundclass_Control",
-    "EXTEND": "Unitables_Boundclass_Extend",
-    "L": "Unitables_Boundclass_L",
-    "V": "Unitables_Boundclass_V",
-    "T": "Unitables_Boundclass_T",
-    "LV": "Unitables_Boundclass_LV",
-    "LVT": "Unitables_Boundclass_LVT",
-    "REGIONAL_INDICATOR": "Unitables_Boundclass_Regional_Indicator",
-    "SPACINGMARK": "Unitables_Boundclass_SpacingMark",
-    "PREPEND": "Unitables_Boundclass_Prepend",
-    "ZWJ": "Unitables_Boundclass_ZWJ",
-    "EXTENDED_PICTOGRAPHIC": "Unitables_Boundclass_Extended_Pictographic",
+BOUND_CLASS_MAP = {
+    "OTHER": "Unitables_Bound_Class_Other",
+    "CR": "Unitables_Bound_Class_CR",
+    "LF": "Unitables_Bound_Class_LF",
+    "CONTROL": "Unitables_Bound_Class_Control",
+    "EXTEND": "Unitables_Bound_Class_Extend",
+    "L": "Unitables_Bound_Class_L",
+    "V": "Unitables_Bound_Class_V",
+    "T": "Unitables_Bound_Class_T",
+    "LV": "Unitables_Bound_Class_LV",
+    "LVT": "Unitables_Bound_Class_LVT",
+    "REGIONAL_INDICATOR": "Unitables_Bound_Class_Regional_Indicator",
+    "SPACINGMARK": "Unitables_Bound_Class_SpacingMark",
+    "PREPEND": "Unitables_Bound_Class_Prepend",
+    "ZWJ": "Unitables_Bound_Class_ZWJ",
+    "EXTENDED_PICTOGRAPHIC": "Unitables_Bound_Class_Extended_Pictographic",
 }
 
-grapheme_boundclass = {}
+grapheme_bound_class = {}
 
 for first, last, fields in parse_ucd(args.grapheme_break_property):
     key = fields[0].upper().replace(" ", "")
     for cp in range(first, last + 1):
-        grapheme_boundclass[cp] = BOUNDCLASS_MAP[key]
+        grapheme_bound_class[cp] = BOUND_CLASS_MAP[key]
 
 for first, last, fields in parse_ucd(args.emoji_data):
     if fields[0] == "Extended_Pictographic":
         for cp in range(first, last + 1):
-            grapheme_boundclass[cp] = "Unitables_Boundclass_Extended_Pictographic"
+            grapheme_bound_class[cp] = "Unitables_Bound_Class_Extended_Pictographic"
     elif fields[0] == "Emoji_Modifier":
         for cp in range(first, last + 1):
-            grapheme_boundclass[cp] = "Unitables_Boundclass_Extend"
+            grapheme_bound_class[cp] = "Unitables_Bound_Class_Extend"
 
 
 # =============================================================================
@@ -182,9 +182,9 @@ for first, last, fields in parse_ucd(args.emoji_data):
 # =============================================================================
 
 INDIC_CONJUNCT_BREAK_MAP = {
-    "Linker": "Unitables_IndicConjunctBreak_Linker",
-    "Consonant": "Unitables_IndicConjunctBreak_Consonant",
-    "Extend": "Unitables_IndicConjunctBreak_Extend",
+    "Linker": "Unitables_Indic_Conjunct_Break_Linker",
+    "Consonant": "Unitables_Indic_Conjunct_Break_Consonant",
+    "Extend": "Unitables_Indic_Conjunct_Break_Extend",
 }
 
 indic_conjunct_break = {}
@@ -257,7 +257,7 @@ SENTINEL = (
     "Unitables_Category_Cn", 0, "0", "0",
     SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE, SEQ_NONE,
     COMB_NONE, 0, 0,
-    "Unitables_Boundclass_Other", "Unitables_IndicConjunctBreak_None",
+    "Unitables_Bound_Class_Other", "Unitables_Indic_Conjunct_Break_None",
 )
 properties = [SENTINEL]
 property_indices = {SENTINEL: 0}
@@ -278,8 +278,8 @@ for code in sorted(unicode_data):
         comb_index.get(code, COMB_NONE),
         comb_length.get(code, 0),
         1 if code in comb_issecond else 0,
-        grapheme_boundclass.get(code, "Unitables_Boundclass_Other"),
-        indic_conjunct_break.get(code, "Unitables_IndicConjunctBreak_None"),
+        grapheme_bound_class.get(code, "Unitables_Bound_Class_Other"),
+        indic_conjunct_break.get(code, "Unitables_Indic_Conjunct_Break_None"),
     )
     char_index[code] = intern(properties, property_indices, entry, [entry])
 
@@ -318,14 +318,14 @@ def property_row(entry):
     category, combining_class, bidi_class, decomp_type = entry[:4]
     dseq, cfseq, useq, lseq, tseq = entry[4:9]
     comb_idx, comb_len, comb_2nd = entry[9:12]
-    boundclass, icb = entry[12:14]
+    bound_class, icb = entry[12:14]
     comb_idx = "UNITABLES_COMB_NONE" if comb_idx == COMB_NONE else str(comb_idx)
     fields = [
         category, str(combining_class), bidi_class, decomp_type,
         format_seq(dseq), format_seq(cfseq), format_seq(useq),
         format_seq(lseq), format_seq(tseq),
         comb_idx, str(comb_len), str(comb_2nd),
-        boundclass, icb,
+        bound_class, icb,
     ]
     return "  { %s }," % ", ".join(fields)
 

@@ -295,60 +295,60 @@ Unitables_Codepoint unitables_compose(Unitables_Codepoint starter,
 static uint8_t unitables_grapheme_break_simple(uint8_t lbc, uint8_t tbc)
 {
   /* GB1 */
-  if (lbc == Unitables_Boundclass_Start)
+  if (lbc == Unitables_Bound_Class_Start)
   {
     return 1;
   }
   /* GB3 */
-  if (lbc == Unitables_Boundclass_CR && tbc == Unitables_Boundclass_LF)
+  if (lbc == Unitables_Bound_Class_CR && tbc == Unitables_Bound_Class_LF)
   {
     return 0;
   }
   /* GB4 */
-  if (lbc >= Unitables_Boundclass_CR && lbc <= Unitables_Boundclass_Control)
+  if (lbc >= Unitables_Bound_Class_CR && lbc <= Unitables_Bound_Class_Control)
   {
     return 1;
   }
   /* GB5 */
-  if (tbc >= Unitables_Boundclass_CR && tbc <= Unitables_Boundclass_Control)
+  if (tbc >= Unitables_Bound_Class_CR && tbc <= Unitables_Bound_Class_Control)
   {
     return 1;
   }
   /* GB6 */
-  if (lbc == Unitables_Boundclass_L &&
-      (tbc == Unitables_Boundclass_L || tbc == Unitables_Boundclass_V ||
-       tbc == Unitables_Boundclass_LV || tbc == Unitables_Boundclass_LVT))
+  if (lbc == Unitables_Bound_Class_L &&
+      (tbc == Unitables_Bound_Class_L || tbc == Unitables_Bound_Class_V ||
+       tbc == Unitables_Bound_Class_LV || tbc == Unitables_Bound_Class_LVT))
   {
     return 0;
   }
   /* GB7 */
-  if ((lbc == Unitables_Boundclass_LV || lbc == Unitables_Boundclass_V) &&
-      (tbc == Unitables_Boundclass_V || tbc == Unitables_Boundclass_T))
+  if ((lbc == Unitables_Bound_Class_LV || lbc == Unitables_Bound_Class_V) &&
+      (tbc == Unitables_Bound_Class_V || tbc == Unitables_Bound_Class_T))
   {
     return 0;
   }
   /* GB8 */
-  if ((lbc == Unitables_Boundclass_LVT || lbc == Unitables_Boundclass_T) &&
-      tbc == Unitables_Boundclass_T)
+  if ((lbc == Unitables_Bound_Class_LVT || lbc == Unitables_Bound_Class_T) &&
+      tbc == Unitables_Bound_Class_T)
   {
     return 0;
   }
   /* GB9/GB9a/GB9b */
-  if (tbc == Unitables_Boundclass_Extend || tbc == Unitables_Boundclass_ZWJ ||
-      tbc == Unitables_Boundclass_SpacingMark ||
-      lbc == Unitables_Boundclass_Prepend)
+  if (tbc == Unitables_Bound_Class_Extend || tbc == Unitables_Bound_Class_ZWJ ||
+      tbc == Unitables_Bound_Class_SpacingMark ||
+      lbc == Unitables_Bound_Class_Prepend)
   {
     return 0;
   }
   /* GB11 */
-  if (lbc == Unitables_Boundclass_E_ZWG &&
-      tbc == Unitables_Boundclass_Extended_Pictographic)
+  if (lbc == Unitables_Bound_Class_E_ZWG &&
+      tbc == Unitables_Bound_Class_Extended_Pictographic)
   {
     return 0;
   }
   /* GB12/13 */
-  if (lbc == Unitables_Boundclass_Regional_Indicator &&
-      tbc == Unitables_Boundclass_Regional_Indicator)
+  if (lbc == Unitables_Bound_Class_Regional_Indicator &&
+      tbc == Unitables_Bound_Class_Regional_Indicator)
   {
     return 0;
   }
@@ -358,42 +358,42 @@ static uint8_t unitables_grapheme_break_simple(uint8_t lbc, uint8_t tbc)
 
 static uint8_t unitables_icb_next(uint8_t state_icb, uint8_t ticb)
 {
-  if (ticb == Unitables_IndicConjunctBreak_Consonant ||
-      state_icb == Unitables_IndicConjunctBreak_Consonant ||
-      state_icb == Unitables_IndicConjunctBreak_Extend)
+  if (ticb == Unitables_Indic_Conjunct_Break_Consonant ||
+      state_icb == Unitables_Indic_Conjunct_Break_Consonant ||
+      state_icb == Unitables_Indic_Conjunct_Break_Extend)
   {
     return ticb;
   }
-  if (state_icb == Unitables_IndicConjunctBreak_Linker &&
-      ticb == Unitables_IndicConjunctBreak_Extend)
+  if (state_icb == Unitables_Indic_Conjunct_Break_Linker &&
+      ticb == Unitables_Indic_Conjunct_Break_Extend)
   {
-    return Unitables_IndicConjunctBreak_Linker;
+    return Unitables_Indic_Conjunct_Break_Linker;
   }
-  if (state_icb == Unitables_IndicConjunctBreak_Linker)
+  if (state_icb == Unitables_Indic_Conjunct_Break_Linker)
   {
     return ticb;
   }
   return state_icb;
 }
 
-static uint8_t unitables_boundclass_next(uint8_t state_bc, uint8_t tbc)
+static uint8_t unitables_bound_class_next(uint8_t state_bc, uint8_t tbc)
 {
   /* GB12/13: reset after two consecutive RIs */
-  if (state_bc == Unitables_Boundclass_Regional_Indicator &&
-      tbc == Unitables_Boundclass_Regional_Indicator)
+  if (state_bc == Unitables_Bound_Class_Regional_Indicator &&
+      tbc == Unitables_Bound_Class_Regional_Indicator)
   {
-    return Unitables_Boundclass_Other;
+    return Unitables_Bound_Class_Other;
   }
   /* GB11: ExtPict absorbs Extend, becomes E_ZWG on ZWJ */
-  if (state_bc == Unitables_Boundclass_Extended_Pictographic)
+  if (state_bc == Unitables_Bound_Class_Extended_Pictographic)
   {
-    if (tbc == Unitables_Boundclass_Extend)
+    if (tbc == Unitables_Bound_Class_Extend)
     {
-      return Unitables_Boundclass_Extended_Pictographic;
+      return Unitables_Bound_Class_Extended_Pictographic;
     }
-    if (tbc == Unitables_Boundclass_ZWJ)
+    if (tbc == Unitables_Bound_Class_ZWJ)
     {
-      return Unitables_Boundclass_E_ZWG;
+      return Unitables_Bound_Class_E_ZWG;
     }
   }
   return tbc;
@@ -408,35 +408,35 @@ uint8_t unitables_grapheme_break(Unitables_Codepoint codepoint1,
 
   if (!state)
   {
-    return unitables_grapheme_break_simple(p1->boundclass, p2->boundclass);
+    return unitables_grapheme_break_simple(p1->bound_class, p2->bound_class);
   }
 
-  uint8_t tbc = p2->boundclass;
+  uint8_t tbc = p2->bound_class;
   uint8_t ticb = p2->indic_conjunct_break;
 
   uint8_t state_bc;
   uint8_t state_icb;
   if (*state == 0)
   {
-    state_bc = p1->boundclass;
+    state_bc = p1->bound_class;
     state_icb =
-        p1->indic_conjunct_break == Unitables_IndicConjunctBreak_Consonant
-            ? Unitables_IndicConjunctBreak_Consonant
-            : Unitables_IndicConjunctBreak_None;
+        p1->indic_conjunct_break == Unitables_Indic_Conjunct_Break_Consonant
+            ? Unitables_Indic_Conjunct_Break_Consonant
+            : Unitables_Indic_Conjunct_Break_None;
   }
   else
   {
-    /* Unpack: low byte = previous boundclass, high byte = InCB state. */
+    /* Unpack: low byte = previous bound class, high byte = InCB state. */
     state_bc = *state & 0xFF;
     state_icb = (*state >> 8) & 0xFF;
   }
 
   /* GB9c: no break between consonants linked by a linker */
   uint8_t permitted = unitables_grapheme_break_simple(state_bc, tbc) &&
-                      !(state_icb == Unitables_IndicConjunctBreak_Linker &&
-                        ticb == Unitables_IndicConjunctBreak_Consonant);
+                      !(state_icb == Unitables_Indic_Conjunct_Break_Linker &&
+                        ticb == Unitables_Indic_Conjunct_Break_Consonant);
 
-  *state = (uint32_t)unitables_boundclass_next(state_bc, tbc) |
+  *state = (uint32_t)unitables_bound_class_next(state_bc, tbc) |
            ((uint32_t)unitables_icb_next(state_icb, ticb) << 8);
   return permitted;
 }

@@ -27,7 +27,7 @@ The generated `unitables_data.c` contains four arrays:
 - `UNITABLES_STAGE1` / `UNITABLES_STAGE2` — the paged index (see lookup above).
 - `UNITABLES_PROPERTIES` — deduplicated `struct Unitables_Properties` entries; index 0 is the sentinel.
 
-`unitables.h` is the hand-written public API: `struct Unitables_Properties`, the `Unitables_Category` / `Unitables_BidiClass` / `Unitables_DecompType` enums, and `unitables_properties()`.
+`unitables.h` is the hand-written public API: `struct Unitables_Properties`, the `Unitables_Category` / `Unitables_Bidi_Class` / `Unitables_Decomp_Type` enums, and `unitables_properties()`.
 
 ### The generator (`unitables.py`)
 
@@ -42,7 +42,8 @@ To add a new property source (e.g. CaseFolding.txt): add a PROCESS block produci
 ## Conventions
 
 - **C, not C++.** Use `/* */` comments only (no `//`), `#include <stdint.h>` only, and **east const** (`T const *`).
-- Naming: type names use Ada case `Unitables_*` (e.g. `Unitables_Properties`, `Unitables_Category_Lu`); generated data tables and macros are UPPERCASE `UNITABLES_*`; functions are lower-snake `unitables_*`.
+- Naming: type names use Ada case `Unitables_*` (e.g. `Unitables_Bidi_Class`, `Unitables_Indic_Conjunct_Break`); generated data tables and macros are UPPERCASE `UNITABLES_*`; functions and struct fields are lower-snake (`unitables_grapheme_break`, `bound_class`).
+- Enum value suffixes are the exception: they reproduce the UCD property value alias verbatim (`Unitables_Category_Lu`, `Unitables_Bound_Class_SpacingMark`). Only the type-name prefix follows Ada case.
 - C formatting is governed by `.clang-format` (Allman braces, 2-space indent, 80 columns, left pointer alignment).
 - Enum values matter: `Unitables_Category_Cn = 0` so unassigned/out-of-range code points share the sentinel slot.
 
