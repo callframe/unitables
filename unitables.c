@@ -43,8 +43,8 @@ struct Unitables_Properties const* unitables_properties(
   }
 
   uint32_t page = UNITABLES_STAGE1[codepoint >> UNITABLES_PAGE_SHIFT];
-  uint32_t index = (page << UNITABLES_PAGE_SHIFT) +
-                   (codepoint & UNITABLES_PAGE_MASK);
+  uint32_t index =
+      (page << UNITABLES_PAGE_SHIFT) + (codepoint & UNITABLES_PAGE_MASK);
 
   return &UNITABLES_PROPERTIES[UNITABLES_STAGE2[index]];
 }
@@ -168,8 +168,7 @@ static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
 
   uint8_t decomposable =
       properties->decomp_seqindex != UNITABLES_SEQ_NONE &&
-      (properties->decomp_type == 0 ||
-       mode != Unitables_Decomp_Mode_Canonical);
+      (properties->decomp_type == 0 || mode != Unitables_Decomp_Mode_Canonical);
   if (!decomposable)
   {
     return unitables_append(codepoint, dst, dst_cap, count);

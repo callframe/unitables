@@ -186,10 +186,10 @@ struct Unitables_Properties const* unitables_properties(
     Unitables_Codepoint codepoint);
 
 /* Writes the decomposition of codepoint into dst: canonical when mode is
-Unitables_Decomp_Mode_Canonical, compatibility otherwise. Recurses, expanding Hangul syllables algorithmically.
-Returns the number of code points the decomposition needs; if that exceeds
-dst_cap, dst holds an undefined partial result. A code point with no
-decomposition yields itself. */
+Unitables_Decomp_Mode_Canonical, compatibility otherwise. Recurses, expanding
+Hangul syllables algorithmically. Returns the number of code points the
+decomposition needs; if that exceeds dst_cap, dst holds an undefined partial
+result. A code point with no decomposition yields itself. */
 uint32_t unitables_decompose(Unitables_Codepoint codepoint,
                              Unitables_Decomp_Mode mode,
                              Unitables_Codepoint* dst, uint32_t dst_cap);
