@@ -45,6 +45,7 @@ To add a new property source (e.g. CaseFolding.txt): add a PROCESS block produci
 - Naming: type names use Ada case `Unitables_*` (e.g. `Unitables_Bidi_Class`, `Unitables_Indic_Conjunct_Break`); generated data tables and macros are UPPERCASE `UNITABLES_*`; functions and struct fields are lower-snake (`unitables_grapheme_break`, `bound_class`).
 - Enum value suffixes are the exception: they reproduce the UCD property value alias verbatim (`Unitables_Category_Lu`, `Unitables_Bound_Class_SpacingMark`). Only the type-name prefix follows Ada case.
 - C formatting is governed by `.clang-format` (Allman braces, 2-space indent, 80 columns, left pointer alignment).
+- Use prefix increment (`++i`, not `i++`), including in `for` increments.
 - Enum values matter: `Unitables_Category_Cn = 0` so unassigned/out-of-range code points share the sentinel slot.
 
 ## Gotchas

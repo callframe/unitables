@@ -24,8 +24,8 @@ args = parser.parse_args()
 
 MAX_CODEPOINT = 0x110000
 PAGE_SIZE = 0x100
-SEQ_NONE = 0xFFFF  # UINT16_MAX: a *_seqindex with no mapping
-COMB_NONE = 0x3FF  # comb_index value meaning "cannot begin a combining pair"
+SEQ_NONE = 0  # a *_seqindex with no mapping; sequence offset 0 is reserved
+COMB_NONE = 0x7FFF  # comb_index value meaning "cannot begin a combining pair"
 
 
 def intern(store, seen, key, block):
@@ -223,15 +223,15 @@ for first in sorted(combinations):
         combinations_combined.append(combinations[first][second])
         comb_issecond.add(second)
 
-assert len(combinations_second) < COMB_NONE, "combination table exceeds 10-bit comb_index"
-assert max(comb_length.values()) <= 0x1F, "comb_length exceeds 5 bits"
+assert len(combinations_second) < COMB_NONE, "combination table exceeds 15-bit comb_index"
+assert max(comb_length.values()) <= 0xFF, "comb_length exceeds 8 bits"
 
 
 # =============================================================================
 # PRODUCE  UNITABLES_SEQUENCES + UNITABLES_PROPERTIES
 # =============================================================================
 
-sequences = []
+sequences = [0]  # offset 0 is reserved so no real mapping encodes as SEQ_NONE
 sequence_offsets = {}
 
 

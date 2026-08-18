@@ -124,10 +124,11 @@ enum
   Unitables_Indic_Conjunct_Break_Extend
 };
 
-/* Value of any *_seqindex field when the code point has no such mapping. */
-#define UNITABLES_SEQ_NONE UINT16_MAX
+/* Value of any *_seqindex field when the code point has no such mapping.
+Sequence offset 0 is reserved, so no real mapping encodes to this value. */
+#define UNITABLES_SEQ_NONE 0
 /* Value of comb_index when the code point cannot begin a combining pair. */
-#define UNITABLES_COMB_NONE 0x3FF
+#define UNITABLES_COMB_NONE 0x7FFF
 /* Value of any code point field when the code point is invalid. */
 #define UNITABLES_INVALID_CODEPOINT INT32_C(-1)
 
@@ -156,10 +157,12 @@ struct Unitables_Properties
   /* Canonical composition. If this code point can begin a combining pair,
   comb_index/comb_length locate its entries in the combination table;
   comb_issecond marks a code point that can be the second of such a pair.
-  comb_index == UNITABLES_COMB_NONE means "cannot begin a pair". */
-  uint16_t comb_index : 10;
-  uint16_t comb_length : 5;
-  uint16_t comb_issecond : 1;
+  comb_index == UNITABLES_COMB_NONE means "cannot begin a pair".
+  This block uses 24 of its 32 bits; the remaining 8 are available for a field
+  here to grow without changing the size of the struct. */
+  uint32_t comb_index : 15;
+  uint32_t comb_length : 8;
+  uint32_t comb_issecond : 1;
 
   /* Grapheme cluster boundary class (UAX #29). */
   Unitables_Bound_Class bound_class;

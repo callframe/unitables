@@ -104,14 +104,14 @@ static uint32_t unitables_write_sequence(uint16_t seqindex,
   uint32_t length;
   uint16_t const* unit = unitables_sequence(seqindex, &length);
 
-  for (uint32_t i = 0; i < length; i++)
+  for (uint32_t i = 0; i < length; ++i)
   {
     Unitables_Codepoint codepoint = unitables_decode_unit(&unit);
     if (i < dst_cap)
     {
       dst[i] = codepoint;
     }
-    unit++;
+    ++unit;
   }
 
   return length;
@@ -175,12 +175,12 @@ static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
   uint16_t const* unit =
       unitables_sequence(properties->decomp_seqindex, &length);
 
-  for (uint32_t i = 0; i < length; i++)
+  for (uint32_t i = 0; i < length; ++i)
   {
     Unitables_Codepoint component = unitables_decode_unit(&unit);
     count =
         unitables_decompose_into(component, dst, dst_cap, count, compatibility);
-    unit++;
+    ++unit;
   }
   return count;
 }
@@ -281,9 +281,9 @@ Unitables_Codepoint unitables_compose(Unitables_Codepoint starter,
   uint32_t start = first->comb_index;
   uint32_t end = start + first->comb_length;
 
-  for (uint32_t i = start; i < end; i++)
+  for (uint32_t i = start; i < end; ++i)
   {
-    if (UNITABLES_COMBINATIONS_SECOND[i] != following)
+    if (UNITABLES_COMBINATIONS_SECOND[i] == following)
     {
       return UNITABLES_COMBINATIONS_COMBINED[i];
     }
