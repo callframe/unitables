@@ -20,11 +20,11 @@ Data flow:
 2. The `generate_unitables` genrule in `BUILD.bazel` runs `unitables.py` on that file, producing `unitables_data.c` in `bazel-bin`.
 3. `unitables.c` does `#include "unitables_data.c"` (it is listed as `textual_hdrs`, not compiled on its own) and implements the public lookup.
 
-Runtime lookup (`unitables.c`): `UNITABLES_PROPERTIES[UNITABLES_STAGE2[UNITABLES_STAGE1[cp >> 8] + (cp & 0xFF)]]`. Out-of-range/unassigned code points resolve to `UNITABLES_PROPERTIES[0]`, the shared sentinel whose `category` is `Unitables_Category_Cn` (= 0).
+Runtime lookup (`unitables.c`): `UNITABLES_PROPERTIES[UNITABLES_STAGE2[(UNITABLES_STAGE1[cp >> 8] << 8) + (cp & 0xFF)]]`. Out-of-range/unassigned code points resolve to `UNITABLES_PROPERTIES[0]`, the shared sentinel whose `category` is `Unitables_Category_Cn` (= 0).
 
 The generated `unitables_data.c` contains four arrays:
-- `UNITABLES_SEQUENCES` — one shared, deduplicated UTF-16 array holding all decomposition and case-mapping code points. A `*_seqindex` packs the storage offset (low 14 bits) and decoded length-1 (top 2 bits; `3` = length stored inline as the first unit). BMP code points take one unit, non-BMP a surrogate pair. `UINT16_MAX` means "no mapping".
-- `UNITABLES_STAGE1` / `UNITABLES_STAGE2` — the paged index (see lookup above).
+- `UNITABLES_SEQUENCES` — one shared, deduplicated UTF-16 array holding all decomposition and case-mapping code points. A `*_seqindex` packs the storage offset (low 14 bits) and decoded length-1 (top 2 bits; `3` = length stored inline as the first unit). BMP code points take one unit, non-BMP a surrogate pair. Storage offset 0 is reserved, so `UNITABLES_SEQ_NONE` (= 0) means "no mapping" and no real mapping can encode to it.
+- `UNITABLES_STAGE1` / `UNITABLES_STAGE2` — the paged index (see lookup above). `UNITABLES_STAGE1` holds page numbers rather than offsets into `UNITABLES_STAGE2`, so a `uint16_t` covers every one of the 4352 pages the code point space can hold.
 - `UNITABLES_PROPERTIES` — deduplicated `struct Unitables_Properties` entries; index 0 is the sentinel.
 
 `unitables.h` is the hand-written public API: `struct Unitables_Properties`, the `Unitables_Category` / `Unitables_Bidi_Class` / `Unitables_Decomp_Type` enums, and `unitables_properties()`.
@@ -47,6 +47,47 @@ To add a new property source (e.g. CaseFolding.txt): add a PROCESS block produci
 - C formatting is governed by `.clang-format` (Allman braces, 2-space indent, 80 columns, left pointer alignment).
 - Use prefix increment (`++i`, not `i++`), including in `for` increments.
 - Enum values matter: `Unitables_Category_Cn = 0` so unassigned/out-of-range code points share the sentinel slot.
+
+## Capacity limits
+
+Every packed field is guarded by an assert in `unitables.py`, so an overflow
+fails the build instead of corrupting data. Fill levels are for Unicode 17.
+
+| field | guard | used | on overflow |
+| --- | --- | --- | --- |
+| `comb_index` (15 bits, sentinel `0x7FFF`) | `unitables.py:226` | 961 / 32766 | widen the bitfield block; 8 of its 32 bits are spare |
+| `comb_length` (8 bits) | `unitables.py:227` | 19 / 255 | same block, same spare bits |
+| `*_seqindex` offset (14 bits) | `unitables.py:252` | 10221 / 16383 | no cheap fix; the encoding fills all 16 bits, so widening the five struct fields is the only route. Grows with every new UCD mapping source, so this is the limit the roadmap moves |
+| `UNITABLES_STAGE1` page number | `unitables.py:299` | 179 / 65535 | unreachable: only 4352 pages exist in the whole code point space |
+| `UNITABLES_STAGE2` property index | `unitables.py:300` | 7142 / 65535 | widen `UNITABLES_STAGE2` to `uint32_t` |
+
+Two invariants are load-bearing and easy to break by accident:
+
+- Sequence storage offset 0 is reserved (`sequences = [0]` in `unitables.py`), so
+  `UNITABLES_SEQ_NONE` (= 0) cannot collide with a real mapping. Removing the pad
+  reintroduces the collision, and also makes a zero-initialised
+  `Unitables_Properties` claim a decomposition at offset 0.
+- `unitables.py:226` hardcodes the bit width in its assert message while the
+  check reads `COMB_NONE`. Change both together.
+
+## Deliberate divergences from `ref/utf8proc`
+
+The layout follows utf8proc, but these differences are intentional. Do not
+"correct" them back toward `ref/`.
+
+- `comb_index` is 15 bits, not 10, and the combination table is asserted.
+  utf8proc has no guard on that table at all, so upstream silently truncates
+  indices if it grows past 1023.
+- `UNITABLES_SEQ_NONE` is 0 with offset 0 reserved. utf8proc uses `UINT16_MAX`,
+  which is a legal encoding (offset `0x3FFF` with length code 3), so upstream
+  can produce a real mapping that reads as "no mapping".
+- `UNITABLES_STAGE1` holds page numbers, not byte offsets into
+  `UNITABLES_STAGE2`. utf8proc's byte offsets cap it at 255 distinct pages. The
+  shift costs roughly 5% on a microbenchmark of pure lookups, which is accepted
+  because callers avoid the lookup for ASCII in the first place.
+- `unitables_decompose` takes `Unitables_Decomp_Mode`, not a `uint8_t` flag. A
+  byte-wide flag truncated values above 255, so `0x100` selected canonical while
+  documented as selecting compatibility.
 
 ## Gotchas
 

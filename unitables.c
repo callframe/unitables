@@ -5,7 +5,7 @@
 #define UNITABLES_MAX_CODEPOINT 0x110000
 
 /* Two-stage index: a page is 0x100 code points; the high bits select the page.
- */
+UNITABLES_STAGE1 holds page numbers, so a page number is shifted, not added. */
 #define UNITABLES_PAGE_SHIFT 8
 #define UNITABLES_PAGE_MASK 0xFF
 
@@ -42,9 +42,11 @@ struct Unitables_Properties const* unitables_properties(
     return &UNITABLES_PROPERTIES[0];
   }
 
-  uint16_t page = UNITABLES_STAGE1[codepoint >> UNITABLES_PAGE_SHIFT];
-  return &UNITABLES_PROPERTIES[UNITABLES_STAGE2[page + (codepoint &
-                                                        UNITABLES_PAGE_MASK)]];
+  uint32_t page = UNITABLES_STAGE1[codepoint >> UNITABLES_PAGE_SHIFT];
+  uint32_t index = (page << UNITABLES_PAGE_SHIFT) +
+                   (codepoint & UNITABLES_PAGE_MASK);
+
+  return &UNITABLES_PROPERTIES[UNITABLES_STAGE2[index]];
 }
 
 /* Reads one code point from a sequence, advancing unit past a surrogate pair.
@@ -153,7 +155,7 @@ static inline uint32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
 static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
                                          Unitables_Codepoint* dst,
                                          uint32_t dst_cap, uint32_t count,
-                                         uint8_t compatibility)
+                                         Unitables_Decomp_Mode mode)
 {
   Unitables_Codepoint syllable = codepoint - UNITABLES_HANGUL_SBASE;
   if (syllable >= 0 && syllable < UNITABLES_HANGUL_SCOUNT)
@@ -164,8 +166,10 @@ static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
   struct Unitables_Properties const* properties =
       unitables_properties(codepoint);
 
-  uint8_t decomposable = properties->decomp_seqindex != UNITABLES_SEQ_NONE &&
-                         (properties->decomp_type == 0 || compatibility);
+  uint8_t decomposable =
+      properties->decomp_seqindex != UNITABLES_SEQ_NONE &&
+      (properties->decomp_type == 0 ||
+       mode != Unitables_Decomp_Mode_Canonical);
   if (!decomposable)
   {
     return unitables_append(codepoint, dst, dst_cap, count);
@@ -178,23 +182,22 @@ static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
   for (uint32_t i = 0; i < length; ++i)
   {
     Unitables_Codepoint component = unitables_decode_unit(&unit);
-    count =
-        unitables_decompose_into(component, dst, dst_cap, count, compatibility);
+    count = unitables_decompose_into(component, dst, dst_cap, count, mode);
     ++unit;
   }
   return count;
 }
 
 uint32_t unitables_decompose(Unitables_Codepoint codepoint,
-                             uint8_t compatibility, Unitables_Codepoint* dst,
-                             uint32_t dst_cap)
+                             Unitables_Decomp_Mode mode,
+                             Unitables_Codepoint* dst, uint32_t dst_cap)
 {
   if (codepoint < 0 || codepoint >= UNITABLES_MAX_CODEPOINT)
   {
     return unitables_append(codepoint, dst, dst_cap, 0);
   }
 
-  return unitables_decompose_into(codepoint, dst, dst_cap, 0, compatibility);
+  return unitables_decompose_into(codepoint, dst, dst_cap, 0, mode);
 }
 
 static Unitables_Codepoint unitables_compose_hangul(

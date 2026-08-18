@@ -287,16 +287,16 @@ for code in sorted(unicode_data):
 # =============================================================================
 # PRODUCE  UNITABLES_STAGE1 + UNITABLES_STAGE2
 # =============================================================================
-# lookup: stage2[stage1[cp >> 8] + (cp & 0xFF)]
+# lookup: stage2[(stage1[cp >> 8] << 8) + (cp & 0xFF)]
 
 stage1 = []
 stage2 = []
 page_offsets = {}
 for start in range(0, MAX_CODEPOINT, PAGE_SIZE):
     page = tuple(char_index[start : start + PAGE_SIZE])
-    stage1.append(intern(stage2, page_offsets, page, page))
+    stage1.append(intern(stage2, page_offsets, page, page) // PAGE_SIZE)
 
-assert max(stage1) <= 0xFFFF, "stage1 offset exceeds uint16"
+assert max(stage1) <= 0xFFFF, "stage1 page number exceeds uint16"
 assert max(stage2) <= 0xFFFF, "property index exceeds uint16"
 
 

@@ -93,6 +93,15 @@ enum
   Unitables_Decomp_Type_Compat,
 };
 
+/* Selects which decomposition unitables_decompose applies. Not stored in
+Unitables_Properties, so this is a full word rather than a byte. */
+typedef uint32_t Unitables_Decomp_Mode;
+enum
+{
+  Unitables_Decomp_Mode_Canonical = 0,
+  Unitables_Decomp_Mode_Compatibility
+};
+
 typedef uint8_t Unitables_Bound_Class;
 enum
 {
@@ -176,14 +185,14 @@ remains valid for the lifetime of the program. */
 struct Unitables_Properties const* unitables_properties(
     Unitables_Codepoint codepoint);
 
-/* Writes the full canonical (compatibility == 0) or compatibility
-(compatibility != 0) decomposition of codepoint into dst, recursing and
-expanding Hangul syllables algorithmically. Returns the number of code points
-the decomposition needs; if that exceeds dst_cap, dst holds an undefined
-partial result. A code point with no decomposition yields itself. */
+/* Writes the decomposition of codepoint into dst: canonical when mode is
+Unitables_Decomp_Mode_Canonical, compatibility otherwise. Recurses, expanding Hangul syllables algorithmically.
+Returns the number of code points the decomposition needs; if that exceeds
+dst_cap, dst holds an undefined partial result. A code point with no
+decomposition yields itself. */
 uint32_t unitables_decompose(Unitables_Codepoint codepoint,
-                             uint8_t compatibility, Unitables_Codepoint* dst,
-                             uint32_t dst_cap);
+                             Unitables_Decomp_Mode mode,
+                             Unitables_Codepoint* dst, uint32_t dst_cap);
 
 /* Returns the canonical composition of starter and the following code point,
 or UNITABLES_INVALID_CODEPOINT if the two do not compose. Handles Hangul. */
