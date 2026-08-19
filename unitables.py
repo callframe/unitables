@@ -98,6 +98,52 @@ while i < len(lines):
         unicode_data[code] = record
 
 
+# Hangul syllables decompose algorithmically; these mirror unitables.c.
+HANGUL_SBASE = 0xAC00
+HANGUL_LBASE = 0x1100
+HANGUL_VBASE = 0x1161
+HANGUL_TBASE = 0x11A7
+HANGUL_TCOUNT = 28
+HANGUL_NCOUNT = 588
+HANGUL_SCOUNT = 11172
+
+full_decompositions = {}
+
+
+def full_decomposition(code, compat):
+    """Expand code the way unitables_decompose_into does, recursively."""
+    cached = full_decompositions.get((code, compat))
+    if cached is not None:
+        return cached
+
+    syllable = code - HANGUL_SBASE
+    if 0 <= syllable < HANGUL_SCOUNT:
+        result = [
+            HANGUL_LBASE + syllable // HANGUL_NCOUNT,
+            HANGUL_VBASE + (syllable % HANGUL_NCOUNT) // HANGUL_TCOUNT,
+        ]
+        if syllable % HANGUL_TCOUNT:
+            result.append(HANGUL_TBASE + syllable % HANGUL_TCOUNT)
+    else:
+        rec = unicode_data[code]
+        if not rec.decomp or (rec.decomp_type != "0" and not compat):
+            result = [code]
+        else:
+            result = []
+            for part in rec.decomp:
+                result += full_decomposition(part, compat)
+
+    full_decompositions[(code, compat)] = result
+    return result
+
+
+# Callers size fixed buffers by UNITABLES_DECOMPOSE_MAX, and unitables_decompose
+# no longer takes a capacity, so outgrowing it must fail the build.
+assert max(len(full_decomposition(c, True)) for c in unicode_data) <= 18, (
+    "decomposition exceeds UNITABLES_DECOMPOSE_MAX"
+)
+
+
 # =============================================================================
 # PROCESS  CompositionExclusions.txt
 # =============================================================================
@@ -137,6 +183,11 @@ for first, last, fields in parse_ucd(args.case_folding):
         mapping = [int(part, 16) for part in fields[1].split()]
         for cp in range(first, last + 1):
             casefold[cp] = mapping
+
+# Same contract as UNITABLES_DECOMPOSE_MAX above.
+assert max(len(v) for v in casefold.values()) <= 3, (
+    "case folding exceeds UNITABLES_CASEFOLD_MAX"
+)
 
 
 # =============================================================================

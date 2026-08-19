@@ -93,8 +93,8 @@ enum
   Unitables_Decomp_Type_Compat,
 };
 
-/* Selects which decomposition unitables_decompose applies. Not stored in
-Unitables_Properties, so this is a full word rather than a byte. */
+/** Which decomposition unitables_decompose applies. A full word, not a byte: a
+byte-wide flag silently truncated 0x100 to canonical. */
 typedef uint32_t Unitables_Decomp_Mode;
 enum
 {
@@ -133,99 +133,105 @@ enum
   Unitables_Indic_Conjunct_Break_Extend
 };
 
-/* Value of any *_seqindex field when the code point has no such mapping.
-Sequence offset 0 is reserved, so no real mapping encodes to this value. */
+/** A *_seqindex with no mapping. Sequence offset 0 is reserved, so no real
+mapping encodes to this value. */
 #define UNITABLES_SEQ_NONE 0
-/* Value of comb_index when the code point cannot begin a combining pair. */
+/** A comb_index that cannot begin a combining pair. */
 #define UNITABLES_COMB_NONE 0x7FFF
-/* Value of any code point field when the code point is invalid. */
+/** An invalid code point. */
 #define UNITABLES_INVALID_CODEPOINT INT32_C(-1)
 
-/* Note: we process UnicodeData.txt, CompositionExclusions.txt,
-CaseFolding.txt, GraphemeBreakProperty.txt, emoji-data.txt, and
-DerivedCoreProperties.txt. */
+/** Longest decomposition of one code point (U+FDFA, compatibility). */
+#define UNITABLES_DECOMPOSE_MAX 18
+/** Longest full case folding of one code point (U+0390). */
+#define UNITABLES_CASEFOLD_MAX 3
+
+/** Properties of one code point, drawn from UnicodeData.txt,
+CompositionExclusions.txt, CaseFolding.txt, GraphemeBreakProperty.txt,
+emoji-data.txt, and DerivedCoreProperties.txt. */
 struct Unitables_Properties
 {
-  /* Describes what kind of character this is, how it combines with
-  neighboring characters, and how it behaves in bidirectional text. */
+  /** Kind of character, how it combines, how it behaves in bidirectional
+  text. */
   Unitables_Category category;
   uint8_t combining_class;
   Unitables_Bidi_Class bidi_class;
 
-  /* Describes how this code point decomposes into simpler code points. */
+  /** How this code point decomposes. */
   Unitables_Decomp_Type decomp_type;
   uint16_t decomp_seqindex;
 
-  /* Describes how this code point maps during case folding and case
-  conversion operations. */
+  /** How this code point maps under case folding and case conversion. */
   uint16_t casefold_seqindex;
   uint16_t uppercase_seqindex;
   uint16_t lowercase_seqindex;
   uint16_t titlecase_seqindex;
 
-  /* Canonical composition. If this code point can begin a combining pair,
-  comb_index/comb_length locate its entries in the combination table;
-  comb_issecond marks a code point that can be the second of such a pair.
-  comb_index == UNITABLES_COMB_NONE means "cannot begin a pair".
-  This block uses 24 of its 32 bits; the remaining 8 are available for a field
-  here to grow without changing the size of the struct. */
+  /** Canonical composition. comb_index/comb_length locate this code point's
+  entries in the combination table, or comb_index is UNITABLES_COMB_NONE if it
+  cannot begin a pair; comb_issecond marks one that can be the second of a pair.
+  24 of the block's 32 bits are used, so a field here can grow for free. */
   uint32_t comb_index : 15;
   uint32_t comb_length : 8;
   uint32_t comb_issecond : 1;
 
-  /* Grapheme cluster boundary class (UAX #29). */
+  /** Grapheme cluster boundary class (UAX #29). */
   Unitables_Bound_Class bound_class;
   Unitables_Indic_Conjunct_Break indic_conjunct_break;
 };
 
-/* Returns the Unicode properties for codepoint. Invalid, out-of-range, and
-unassigned code points return a shared sentinel whose category is
-Unitables_Category_Cn. The returned pointer refers to static data and
-remains valid for the lifetime of the program. */
+/** Properties of codepoint. Invalid, out-of-range, and unassigned code points
+share a sentinel whose category is Unitables_Category_Cn.
+@return Static storage, valid for the lifetime of the program. */
 struct Unitables_Properties const* unitables_properties(
     Unitables_Codepoint codepoint);
 
-/* Writes the decomposition of codepoint into dst: canonical when mode is
-Unitables_Decomp_Mode_Canonical, compatibility otherwise. Recurses, expanding
-Hangul syllables algorithmically. Returns the number of code points the
-decomposition needs; if that exceeds dst_cap, dst holds an undefined partial
-result. A code point with no decomposition yields itself. */
+/** Decomposes codepoint into dst, recursing and expanding Hangul syllables
+algorithmically. A code point with no decomposition yields itself.
+@param dst Room for unitables_decompose_length(codepoint, mode).
+@return Code points written. */
 uint32_t unitables_decompose(Unitables_Codepoint codepoint,
                              Unitables_Decomp_Mode mode,
-                             Unitables_Codepoint* dst, uint32_t dst_cap);
+                             Unitables_Codepoint* dst);
 
-/* Returns the canonical composition of starter and the following code point,
-or UNITABLES_INVALID_CODEPOINT if the two do not compose. Handles Hangul. */
+/** @return Code points unitables_decompose will write, at most
+UNITABLES_DECOMPOSE_MAX. */
+uint32_t unitables_decompose_length(Unitables_Codepoint codepoint,
+                                    Unitables_Decomp_Mode mode);
+
+/** Canonically composes a pair, Hangul included.
+@return The composite, or UNITABLES_INVALID_CODEPOINT if they do not compose. */
 Unitables_Codepoint unitables_compose(Unitables_Codepoint starter,
                                       Unitables_Codepoint following);
 
-/* Returns the simple uppercase mapping of codepoint, or codepoint if there is
-no uppercase mapping. This is a one-code-point table lookup and does not apply
-context-sensitive SpecialCasing.txt rules. */
+/** @return The simple uppercase mapping of codepoint, or codepoint if it has
+none. One table lookup; no context-sensitive SpecialCasing.txt rules. */
 Unitables_Codepoint unitables_toupper(Unitables_Codepoint codepoint);
 
-/* Returns the simple lowercase mapping of codepoint, or codepoint if there is
-no lowercase mapping. This is a one-code-point table lookup and does not apply
-context-sensitive SpecialCasing.txt rules. */
+/** @return The simple lowercase mapping of codepoint, or codepoint if it has
+none. One table lookup; no context-sensitive SpecialCasing.txt rules. */
 Unitables_Codepoint unitables_tolower(Unitables_Codepoint codepoint);
 
-/* Returns the simple titlecase mapping of codepoint, or codepoint if there is
-no titlecase mapping. This is a one-code-point table lookup and does not apply
-context-sensitive SpecialCasing.txt rules. */
+/** @return The simple titlecase mapping of codepoint, or codepoint if it has
+none. One table lookup; no context-sensitive SpecialCasing.txt rules. */
 Unitables_Codepoint unitables_totitle(Unitables_Codepoint codepoint);
 
-/* Writes the default full case folding of codepoint into dst and returns the
-number of code points the mapping needs. If the code point has no mapping, the
-input code point is written back. This is a table lookup for one code point; it
-does not process strings and does not apply Turkic case folding rules. */
+/** Writes the default full case folding of codepoint into dst. A code point
+with no mapping yields itself. Folds one code point; does not process strings
+and does not apply Turkic rules.
+@param dst Room for unitables_casefold_length(codepoint).
+@return Code points written. */
 uint32_t unitables_casefold(Unitables_Codepoint codepoint,
-                            Unitables_Codepoint* dst, uint32_t dst_cap);
+                            Unitables_Codepoint* dst);
 
-/* Given a pair of consecutive code points, returns whether a grapheme cluster
-break is permitted between them (UAX #29 extended grapheme clusters). state
-must point to a uint32_t initialized to 0 at the start of the string; it
-tracks context needed for GB9c/GB11/GB12/GB13. If state is NULL, those rules
-are not applied. */
+/** @return Code points unitables_casefold will write, at most
+UNITABLES_CASEFOLD_MAX. */
+uint32_t unitables_casefold_length(Unitables_Codepoint codepoint);
+
+/** Whether a grapheme cluster break is permitted between two consecutive code
+points (UAX #29 extended grapheme clusters).
+@param state A uint32_t zeroed at the start of the string, carrying the context
+for GB9c/GB11/GB12/GB13, or NULL to skip those rules. */
 uint8_t unitables_grapheme_break(Unitables_Codepoint codepoint1,
                                  Unitables_Codepoint codepoint2,
                                  uint32_t* state);

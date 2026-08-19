@@ -1,5 +1,7 @@
 #include "unitables.h"
 
+#include <stddef.h>
+
 #include "unitables_data.c"
 
 #define UNITABLES_MAX_CODEPOINT 0x110000
@@ -86,12 +88,12 @@ static inline uint16_t const* unitables_sequence(uint16_t seqindex,
   return unit + 1;
 }
 
-/* Appends codepoint at index count (if it fits) and returns count + 1. */
+/* Appends codepoint at index count; a null dst counts without writing. */
 static inline uint32_t unitables_append(Unitables_Codepoint codepoint,
                                         Unitables_Codepoint* dst,
-                                        uint32_t dst_cap, uint32_t count)
+                                        uint32_t count)
 {
-  if (count < dst_cap)
+  if (dst)
   {
     dst[count] = codepoint;
   }
@@ -100,8 +102,7 @@ static inline uint32_t unitables_append(Unitables_Codepoint codepoint,
 }
 
 static uint32_t unitables_write_sequence(uint16_t seqindex,
-                                         Unitables_Codepoint* dst,
-                                         uint32_t dst_cap)
+                                         Unitables_Codepoint* dst)
 {
   uint32_t length;
   uint16_t const* unit = unitables_sequence(seqindex, &length);
@@ -109,7 +110,7 @@ static uint32_t unitables_write_sequence(uint16_t seqindex,
   for (uint32_t i = 0; i < length; ++i)
   {
     Unitables_Codepoint codepoint = unitables_decode_unit(&unit);
-    if (i < dst_cap)
+    if (dst)
     {
       dst[i] = codepoint;
     }
@@ -130,7 +131,6 @@ static Unitables_Codepoint unitables_decode_sequence_first(uint16_t seqindex)
 
 static inline uint32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
                                                   Unitables_Codepoint* dst,
-                                                  uint32_t dst_cap,
                                                   uint32_t count)
 {
   Unitables_Codepoint trail = syllable % UNITABLES_HANGUL_TCOUNT;
@@ -142,25 +142,24 @@ static inline uint32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
       UNITABLES_HANGUL_VBASE +
       (syllable % UNITABLES_HANGUL_NCOUNT) / UNITABLES_HANGUL_TCOUNT;
 
-  count = unitables_append(lead, dst, dst_cap, count);
-  count = unitables_append(vowel, dst, dst_cap, count);
+  count = unitables_append(lead, dst, count);
+  count = unitables_append(vowel, dst, count);
   if (trail != 0)
   {
-    count =
-        unitables_append(UNITABLES_HANGUL_TBASE + trail, dst, dst_cap, count);
+    count = unitables_append(UNITABLES_HANGUL_TBASE + trail, dst, count);
   }
   return count;
 }
 
 static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
                                          Unitables_Codepoint* dst,
-                                         uint32_t dst_cap, uint32_t count,
+                                         uint32_t count,
                                          Unitables_Decomp_Mode mode)
 {
   Unitables_Codepoint syllable = codepoint - UNITABLES_HANGUL_SBASE;
   if (syllable >= 0 && syllable < UNITABLES_HANGUL_SCOUNT)
   {
-    return unitables_decompose_hangul(syllable, dst, dst_cap, count);
+    return unitables_decompose_hangul(syllable, dst, count);
   }
 
   struct Unitables_Properties const* properties =
@@ -171,7 +170,7 @@ static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
       (properties->decomp_type == 0 || mode != Unitables_Decomp_Mode_Canonical);
   if (!decomposable)
   {
-    return unitables_append(codepoint, dst, dst_cap, count);
+    return unitables_append(codepoint, dst, count);
   }
 
   uint32_t length;
@@ -181,7 +180,7 @@ static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
   for (uint32_t i = 0; i < length; ++i)
   {
     Unitables_Codepoint component = unitables_decode_unit(&unit);
-    count = unitables_decompose_into(component, dst, dst_cap, count, mode);
+    count = unitables_decompose_into(component, dst, count, mode);
     ++unit;
   }
   return count;
@@ -189,14 +188,20 @@ static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
 
 uint32_t unitables_decompose(Unitables_Codepoint codepoint,
                              Unitables_Decomp_Mode mode,
-                             Unitables_Codepoint* dst, uint32_t dst_cap)
+                             Unitables_Codepoint* dst)
 {
   if (codepoint < 0 || codepoint >= UNITABLES_MAX_CODEPOINT)
   {
-    return unitables_append(codepoint, dst, dst_cap, 0);
+    return unitables_append(codepoint, dst, 0);
   }
 
-  return unitables_decompose_into(codepoint, dst, dst_cap, 0, mode);
+  return unitables_decompose_into(codepoint, dst, 0, mode);
+}
+
+uint32_t unitables_decompose_length(Unitables_Codepoint codepoint,
+                                    Unitables_Decomp_Mode mode)
+{
+  return unitables_decompose(codepoint, mode, NULL);
 }
 
 static Unitables_Codepoint unitables_compose_hangul(
@@ -250,17 +255,22 @@ Unitables_Codepoint unitables_totitle(Unitables_Codepoint codepoint)
 }
 
 uint32_t unitables_casefold(Unitables_Codepoint codepoint,
-                            Unitables_Codepoint* dst, uint32_t dst_cap)
+                            Unitables_Codepoint* dst)
 {
   struct Unitables_Properties const* properties =
       unitables_properties(codepoint);
 
   if (properties->casefold_seqindex == UNITABLES_SEQ_NONE)
   {
-    return unitables_append(codepoint, dst, dst_cap, 0);
+    return unitables_append(codepoint, dst, 0);
   }
 
-  return unitables_write_sequence(properties->casefold_seqindex, dst, dst_cap);
+  return unitables_write_sequence(properties->casefold_seqindex, dst);
+}
+
+uint32_t unitables_casefold_length(Unitables_Codepoint codepoint)
+{
+  return unitables_casefold(codepoint, NULL);
 }
 
 Unitables_Codepoint unitables_compose(Unitables_Codepoint starter,
