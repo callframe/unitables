@@ -1,5 +1,6 @@
 #include "unitables.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 
 #include "unitables_data.c"
@@ -51,8 +52,8 @@ struct Unitables_Properties const* unitables_properties(
   return &UNITABLES_PROPERTIES[UNITABLES_STAGE2[index]];
 }
 
-/* Reads one code point from a sequence, advancing unit past a surrogate pair.
- */
+/* Reads one code point from a sequence, advancing unit past a surrogate
+pair. */
 static inline Unitables_Codepoint unitables_decode_unit(uint16_t const** unit)
 {
   Unitables_Codepoint codepoint = **unit;
@@ -69,8 +70,8 @@ static inline Unitables_Codepoint unitables_decode_unit(uint16_t const** unit)
          low;
 }
 
-/* Locates a sequence: returns its first unit and writes the code-point count.
- */
+/* Locates a sequence: returns its first unit and writes the code-point
+count. */
 static inline uint16_t const* unitables_sequence(uint16_t seqindex,
                                                  uint32_t* length)
 {
@@ -88,6 +89,7 @@ static inline uint16_t const* unitables_sequence(uint16_t seqindex,
   return unit + 1;
 }
 
+/* Writes a whole sequence and returns its length in code points. */
 static uint32_t unitables_write_sequence(uint16_t seqindex,
                                          Unitables_Codepoint* dst)
 {
@@ -103,6 +105,8 @@ static uint32_t unitables_write_sequence(uint16_t seqindex,
   return length;
 }
 
+/* Decomposes a Hangul syllable index into its two or three jamo. UAX #15 gives
+these arithmetically, so no table entry exists to look up. */
 static inline uint32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
                                                   Unitables_Codepoint* dst,
                                                   uint32_t count)
@@ -127,14 +131,24 @@ static inline uint32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
   return count + 3;
 }
 
+/* Decomposes one code point onto the end of dst, returning the new count or
+dst_cap + 1 if it did not fit. Capacity is threaded here rather than on
+unitables_decompose because a public caller's array is always
+UNITABLES_DECOMPOSE_MAX, while a normalization buffer's remaining room is
+not. */
 static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
                                          Unitables_Codepoint* dst,
-                                         uint32_t count,
+                                         uint32_t count, uint32_t dst_cap,
                                          Unitables_Decomp_Mode mode)
 {
   Unitables_Codepoint syllable = codepoint - UNITABLES_HANGUL_SBASE;
   if (syllable >= 0 && syllable < UNITABLES_HANGUL_SCOUNT)
   {
+    if (count + 3 > dst_cap)
+    {
+      return dst_cap + 1;
+    }
+
     return unitables_decompose_hangul(syllable, dst, count);
   }
 
@@ -146,6 +160,11 @@ static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
       (properties->decomp_type == 0 || mode != Unitables_Decomp_Mode_Canonical);
   if (!decomposable)
   {
+    if (count == dst_cap)
+    {
+      return dst_cap + 1;
+    }
+
     dst[count] = codepoint;
     return count + 1;
   }
@@ -157,7 +176,12 @@ static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
   for (uint32_t i = 0; i < length; ++i)
   {
     Unitables_Codepoint component = unitables_decode_unit(&unit);
-    count = unitables_decompose_into(component, dst, count, mode);
+    count = unitables_decompose_into(component, dst, count, dst_cap, mode);
+    if (count > dst_cap)
+    {
+      return count;
+    }
+
     ++unit;
   }
   return count;
@@ -173,11 +197,15 @@ uint32_t unitables_decompose(Unitables_Codepoint codepoint,
     return 1;
   }
 
-  return unitables_decompose_into(codepoint, dst, 0, mode);
+  return unitables_decompose_into(codepoint, dst, 0, UNITABLES_DECOMPOSE_MAX,
+                                  mode);
 }
 
-static Unitables_Codepoint unitables_compose_hangul(
-    Unitables_Codepoint first, Unitables_Codepoint second)
+/* The arithmetic inverse of unitables_decompose_hangul: pairs L+V into an LV
+syllable, or LV+T into LVT. The trailing form requires a syllable with no trail
+yet, which is what the modulo tests. */
+static Unitables_Codepoint unitables_compose_hangul(Unitables_Codepoint first,
+                                                    Unitables_Codepoint second)
 {
   Unitables_Codepoint lead = first - UNITABLES_HANGUL_LBASE;
   Unitables_Codepoint vowel = second - UNITABLES_HANGUL_VBASE;
@@ -248,6 +276,199 @@ Unitables_Codepoint unitables_compose(Unitables_Codepoint first,
   return UNITABLES_INVALID_CODEPOINT;
 }
 
+/* Whether a code point can be the second of a composable pair, including the
+Hangul jamo the combination table cannot describe. */
+static bool unitables_composes_backwards(Unitables_Codepoint codepoint)
+{
+  Unitables_Codepoint vowel = codepoint - UNITABLES_HANGUL_VBASE;
+  if (vowel >= 0 && vowel < UNITABLES_HANGUL_VCOUNT)
+  {
+    return true;
+  }
+
+  Unitables_Codepoint trail = codepoint - UNITABLES_HANGUL_TBASE;
+  if (trail > 0 && trail < UNITABLES_HANGUL_TCOUNT)
+  {
+    return true;
+  }
+
+  return unitables_properties(codepoint)->comb_issecond;
+}
+
+/* Whether a code point begins a new normalization segment, and so is safe to
+resume from. The test looks at the first code point the decomposition yields
+rather than the code point itself, because the segment machinery sees decomposed
+text: U+16123 looks like a starter but decomposes to a pair whose first half
+composes backwards. */
+static bool unitables_starts_segment(Unitables_Codepoint codepoint,
+                                     Unitables_Decomp_Mode mode, bool compose)
+{
+  Unitables_Codepoint decomposition[UNITABLES_DECOMPOSE_MAX];
+  unitables_decompose(codepoint, mode, decomposition);
+  Unitables_Codepoint first = decomposition[0];
+
+  if (unitables_properties(first)->combining_class != 0)
+  {
+    return false;
+  }
+
+  /* Cutting before something that composes into the segment before it would
+  lose that composition. */
+  if (compose)
+  {
+    return !unitables_composes_backwards(first);
+  }
+
+  return true;
+}
+
+/* Puts a decomposed segment into canonical order, sorting each run of marks by
+combining class. */
+static void unitables_reorder_segment(Unitables_Codepoint* dst, uint32_t length)
+{
+  for (uint32_t i = 1; i < length; ++i)
+  {
+    Unitables_Codepoint codepoint = dst[i];
+    uint8_t ccc = unitables_properties(codepoint)->combining_class;
+
+    /* Starters never move: they bound the runs the marks sort within. */
+    if (ccc == 0)
+    {
+      continue;
+    }
+
+    /* Insertion sort, because a run is a handful of marks at most. */
+    uint32_t hole = i;
+    while (hole > 0)
+    {
+      uint8_t previous = unitables_properties(dst[hole - 1])->combining_class;
+
+      /* Stopping on equality keeps equal classes in input order, which
+      canonical ordering requires, and a starter's zero class ends the run. */
+      if (previous <= ccc)
+      {
+        break;
+      }
+
+      dst[hole] = dst[hole - 1];
+      --hole;
+    }
+
+    dst[hole] = codepoint;
+  }
+}
+
+/* Recomposes an ordered segment in place and returns its new length. Requires
+unitables_reorder_segment to have run, since the blocking rule reads combining
+classes in canonical order. */
+static uint32_t unitables_compose_segment(Unitables_Codepoint* dst,
+                                          uint32_t length)
+{
+  if (length == 0)
+  {
+    return 0;
+  }
+
+  uint32_t starter = 0;
+  uint32_t written = 1;
+  int32_t previous_ccc = -1;
+
+  for (uint32_t i = 1; i < length; ++i)
+  {
+    int32_t ccc = unitables_properties(dst[i])->combining_class;
+
+    /* UAX #15 blocking: anything already kept that sorts at or after this one
+    stands between it and the starter. -1 means nothing intervenes yet, so a
+    starter directly after another can still pair, as Hangul L+V does. */
+    bool blocked = previous_ccc >= ccc;
+
+    if (!blocked)
+    {
+      Unitables_Codepoint composite = unitables_compose(dst[starter], dst[i]);
+      if (composite != UNITABLES_INVALID_CODEPOINT)
+      {
+        dst[starter] = composite;
+        continue;
+      }
+    }
+
+    if (ccc == 0)
+    {
+      starter = written;
+      previous_ccc = -1;
+    }
+    else
+    {
+      previous_ccc = ccc;
+    }
+
+    dst[written] = dst[i];
+    ++written;
+  }
+
+  return written;
+}
+
+uint32_t unitables_normalize(Unitables_Codepoint const* src, uint32_t src_len,
+                             uint32_t src_offset, Unitables_Normal_Form form,
+                             Unitables_Codepoint* dst, uint32_t dst_cap,
+                             uint32_t* src_consumed)
+{
+  bool compose =
+      form == Unitables_Normal_Form_NFC || form == Unitables_Normal_Form_NFKC;
+
+  Unitables_Decomp_Mode mode = Unitables_Decomp_Mode_Canonical;
+  if (form == Unitables_Normal_Form_NFKD || form == Unitables_Normal_Form_NFKC)
+  {
+    mode = Unitables_Decomp_Mode_Compatibility;
+  }
+
+  uint32_t read = src_offset;
+  uint32_t written = 0;
+
+  *src_consumed = 0;
+
+  while (read < src_len)
+  {
+    uint32_t end = read + 1;
+    while (end < src_len && !unitables_starts_segment(src[end], mode, compose))
+    {
+      ++end;
+    }
+
+    uint32_t length = written;
+    for (uint32_t i = read; i < end; ++i)
+    {
+      length = unitables_decompose_into(src[i], dst, length, dst_cap, mode);
+      if (length > dst_cap)
+      {
+        return written;
+      }
+    }
+
+    /* Reordering and composing span the whole segment, so both run only once
+    the segment is complete. */
+    unitables_reorder_segment(dst + written, length - written);
+    if (compose)
+    {
+      length =
+          written + unitables_compose_segment(dst + written, length - written);
+    }
+
+    written = length;
+    read = end;
+
+    /* Only whole segments are reported, so the caller always resumes on a
+    boundary. */
+    *src_consumed = end - src_offset;
+  }
+
+  return written;
+}
+
+/* The UAX #29 rules that depend only on the two bound classes. The rules
+needing history (GB9c, GB11, GB12/13) are applied by the caller against the
+state word, which is why the numbering below has gaps. */
 static uint8_t unitables_grapheme_break_simple(uint8_t lbc, uint8_t tbc)
 {
   /* GB1 */
@@ -312,6 +533,8 @@ static uint8_t unitables_grapheme_break_simple(uint8_t lbc, uint8_t tbc)
   return 1;
 }
 
+/* Advances the Indic conjunct break state for GB9c, which has to remember a
+linker seen earlier in the cluster across any number of extends. */
 static uint8_t unitables_icb_next(uint8_t state_icb, uint8_t ticb)
 {
   if (ticb == Unitables_Indic_Conjunct_Break_Consonant ||
@@ -332,6 +555,10 @@ static uint8_t unitables_icb_next(uint8_t state_icb, uint8_t ticb)
   return state_icb;
 }
 
+/* Carries the bound class forward to the next pair. The class is normally just
+the trailing one; the exceptions exist so the rules needing history can be
+decided from a single byte, letting a pictograph survive its Extends to reach
+GB11 and a pair of Regional_Indicators stop the third from joining them. */
 static uint8_t unitables_bound_class_next(uint8_t state_bc, uint8_t tbc)
 {
   /* GB12/13: reset after two consecutive RIs */

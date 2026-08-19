@@ -102,6 +102,18 @@ enum
   Unitables_Decomp_Mode_Compatibility
 };
 
+/** Which normal form unitables_normalize produces (UAX #15). The K forms apply
+compatibility decompositions, which lose formatting distinctions and cannot be
+undone; the others are lossless. */
+typedef uint32_t Unitables_Normal_Form;
+enum
+{
+  Unitables_Normal_Form_NFD = 0,
+  Unitables_Normal_Form_NFC,
+  Unitables_Normal_Form_NFKD,
+  Unitables_Normal_Form_NFKC
+};
+
 typedef uint8_t Unitables_Bound_Class;
 enum
 {
@@ -206,6 +218,20 @@ and does not apply Turkic rules.
 @return Code points written, at most UNITABLES_CASEFOLD_MAX. */
 uint32_t unitables_casefold(Unitables_Codepoint codepoint,
                             Unitables_Codepoint* dst);
+
+/** Normalizes src into dst, starting at src_offset and stopping on a
+normalization boundary once dst fills. src is the whole string and stays put;
+the caller advances src_offset by *src_consumed until it reaches src_len,
+appending the code points written each call.
+
+A segment is a starter and the non-starters following it, and is written whole
+or not at all, so a segment longer than dst_cap consumes nothing and the caller
+must grow dst to progress.
+@return Code points written. */
+uint32_t unitables_normalize(Unitables_Codepoint const* src, uint32_t src_len,
+                             uint32_t src_offset, Unitables_Normal_Form form,
+                             Unitables_Codepoint* dst, uint32_t dst_cap,
+                             uint32_t* src_consumed);
 
 /** Whether a grapheme cluster break is permitted between two consecutive code
 points (UAX #29 extended grapheme clusters).
