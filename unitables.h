@@ -7,8 +7,12 @@ extern "C"
 {
 #endif
 
+/** A Unicode code point. Signed, so that UNITABLES_INVALID_CODEPOINT can be a
+value no code point has. */
 typedef int32_t Unitables_Codepoint;
 
+/** General_Category of a code point. Cn is 0, so unassigned, out-of-range, and
+invalid code points all share the sentinel entry. */
 typedef uint8_t Unitables_Category;
 enum
 {
@@ -44,6 +48,8 @@ enum
   Unitables_Category_Co
 };
 
+/** Bidi_Class of a code point (UAX #9). Numbering starts at 1; the 0 on the
+sentinel is no class at all. */
 typedef uint8_t Unitables_Bidi_Class;
 enum
 {
@@ -72,6 +78,8 @@ enum
   Unitables_Bidi_Class_PDI
 };
 
+/** Compatibility formatting tag of a decomposition. Numbering starts at 1, so
+0 says the decomposition is canonical. */
 typedef uint8_t Unitables_Decomp_Type;
 enum
 {
@@ -90,7 +98,7 @@ enum
   Unitables_Decomp_Type_Small,
   Unitables_Decomp_Type_Square,
   Unitables_Decomp_Type_Fraction,
-  Unitables_Decomp_Type_Compat,
+  Unitables_Decomp_Type_Compat
 };
 
 /** Which decomposition unitables_decompose applies. A full word, not a byte: a
@@ -114,6 +122,10 @@ enum
   Unitables_Normal_Form_NFKC
 };
 
+/** Grapheme cluster boundary class (UAX #29). Start is 0 and belongs to no
+code point, which is what lets a zeroed unitables_grapheme_break state mean
+uninitialized. E_ZWG is not a UCD value either: it is an Extended_Pictographic
+followed by ZWJ, the history GB11 needs. */
 typedef uint8_t Unitables_Bound_Class;
 enum
 {
@@ -136,6 +148,7 @@ enum
   Unitables_Bound_Class_E_ZWG
 };
 
+/** Indic_Conjunct_Break of a code point, the property GB9c tests. */
 typedef uint8_t Unitables_Indic_Conjunct_Break;
 enum
 {
