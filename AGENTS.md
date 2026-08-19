@@ -11,6 +11,15 @@ UniTables is a small C library that emits lookup tables for Unicode properties (
 
 There is no automated test target. To validate generator changes, generate `unitables_data.c` and compare `unitables_properties(cp)` results against the source `UnicodeData.txt` directly (Python's bundled `unicodedata` is an older Unicode version, so it is *not* a valid oracle).
 
+For the algorithms rather than the tables, Unicode ships conformance files that are the authoritative oracle. Do not validate against `ref/utf8proc` — it is one implementation's opinion, not the spec.
+
+| what | file | how to read it |
+| --- | --- | --- |
+| normalization | `NormalizationTest.txt` | five `;`-separated columns; NFC of c1..c3 is c2, NFD of c1..c3 is c3, NFKC of all five is c4, NFKD of all five is c5 |
+| grapheme breaks | `auxiliary/GraphemeBreakTest.txt` | `÷` marks a break, `×` no break, between the listed code points |
+
+Both live under `https://www.unicode.org/Public/<UNICODE_VERSION>/ucd/`. When a harness passes, mutate one rule in `unitables.c` and confirm it fails — a parser that silently skips every line also reports zero failures.
+
 ## Architecture
 
 The library is a generated two-stage lookup table, mirroring utf8proc's design. Reference copies of utf8proc (`ref/utf8proc.c`, `.h`, `.jl`) are vendored for guidance only and are **not** part of the build.
@@ -29,6 +38,20 @@ The generated `unitables_data.c` contains four arrays:
 
 `unitables.h` is the hand-written public API: `struct Unitables_Properties`, the `Unitables_Category` / `Unitables_Bidi_Class` / `Unitables_Decomp_Type` enums, and `unitables_properties()`.
 
+### Normalization
+
+`unitables_normalize` (UAX #15, all four forms) works segment by segment: decompose, canonically order, and for the C forms recompose. A segment is a starter plus the non-starters after it, and is emitted whole or not at all, which is what lets the caller resume mid-string on a guaranteed boundary.
+
+Two things about boundaries are easy to get wrong, and both were real bugs caught by `NormalizationTest.txt`:
+- The test must run on the **first code point of the decomposition**, not the code point itself. `U+16123` looks like a starter but decomposes to a pair whose first half composes backwards.
+- Hangul V and T jamo have `combining_class == 0` and no combination-table entry, because Hangul composes arithmetically. They still compose backwards, so `unitables_composes_backwards` special-cases them; without that, `L+V+T` gets split into separate segments.
+
+### Grapheme breaks
+
+The stateful `unitables_grapheme_break` packs the previous bound class in the low byte and the InCB state in the high byte. `*state == 0` doubles as "uninitialized", which is only safe because `Unitables_Bound_Class_Start = 0` and no code point is ever classified `Start`, so a real packed state cannot be 0. Keep it that way.
+
+Only three UAX #29 rules need history: GB9c (`unitables_icb_next`), GB11 and GB12/13 (`unitables_bound_class_next`). Everything else is a pure function of the two bound classes and lives in `unitables_grapheme_break_simple`.
+
 ### The generator (`unitables.py`)
 
 Organized into two kinds of clearly-bannered blocks:
@@ -46,9 +69,12 @@ To add a new property source (e.g. CaseFolding.txt): add a PROCESS block produci
 - Enum value suffixes are the exception: they reproduce the UCD property value alias verbatim (`Unitables_Category_Lu`, `Unitables_Bound_Class_SpacingMark`). Only the type-name prefix follows Ada case.
 - C formatting is governed by `.clang-format` (Allman braces, 2-space indent, 80 columns, left pointer alignment).
 - Use prefix increment (`++i`, not `i++`), including in `for` increments.
-- Multi-code-point writers take no capacity and require a non-null `dst`: the caller sizes `dst` by the writer's published `UNITABLES_*_MAX` bound. Those bounds are small enough to be stack arrays, so measuring before writing would only do the work twice to avoid a buffer the caller should have declared anyway. No partial writes, ever.
+- Output shape follows the bound, and there are exactly two. **Bounded** writers (one code point in, `UNITABLES_*_MAX` out) take no capacity and require a non-null `dst`: the caller sizes `dst` by the published macro. Those bounds are small enough to be stack arrays, so measuring before writing would only do the work twice to avoid a buffer the caller should have declared anyway. **Unbounded** writers (a whole string, no useful compile-time bound) take `dst_cap` and report `*src_consumed`, and the caller loops. Inputs first, then `dst` and `dst_cap`, output parameters last. No partial writes in either shape.
+- Unbounded writers keep `src` fixed and advance `src_offset` rather than the pointer, so a function needing backward context can still see it. Normalization does not need this — its boundaries make a pointer advance safe — but casing does, and one shape for both beats two conventions.
+- Capacity belongs on internal helpers only where the room is genuinely variable. `unitables_decompose_into` takes a `dst_cap` because a normalization buffer's remaining room varies; the public `unitables_decompose` does not, because a caller's array is always `UNITABLES_DECOMPOSE_MAX`. Do not "fix" this asymmetry in either direction.
 - Flat code. Early returns and `continue` over nesting, `goto` acceptable, helpers rather than indentation. The longer a function, the simpler it must be; code that wraps at 80 columns is too deeply nested.
 - Comments are minimal and say why, not what. More comment than code is a smell. In `unitables.c`, a plain `/* */` one-liner where it earns its place and none where the code reads clearly. In `unitables.h` they are the public contract, so they are doxygen: `/** */`, continuation lines with no leading asterisk, and `@param` / `@return` only where they add something the prose did not.
+- Every `static` in `unitables.c` carries a header comment, and they are all or nothing: a scheme applied to some of them is worse than none. The shape is the operation first, then the why if there is one; predicates read "Whether …".
 - C99 today. C11 and C17 are fine; C23 is not, because MSVC has no native support for it.
 - No encoding layer, deliberately. UniTables is consumed by a UTF-16 JS engine and a UTF-8 compiler, so code points are the only neutral currency and callers decode on their own side.
 - Enum values matter: `Unitables_Category_Cn = 0` so unassigned/out-of-range code points share the sentinel slot.
@@ -111,6 +137,10 @@ The layout follows utf8proc, but these differences are intentional. Do not
   utf8proc's `utf8proc_decompose_char` takes one and truncates on overflow; ours
   publishes asserted compile-time bounds instead, so the caller sizes the buffer
   once and the writer never partially fills it.
+- `unitables_normalize` stops on normalization boundaries and reports how much
+  it consumed. utf8proc normalizes a whole buffer in place and has no way to
+  make partial progress, so its caller must size the output for the entire
+  string up front.
 
 ## Gotchas
 
