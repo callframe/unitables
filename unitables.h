@@ -188,45 +188,24 @@ struct Unitables_Properties const* unitables_properties(
 
 /** Decomposes codepoint into dst, recursing and expanding Hangul syllables
 algorithmically. A code point with no decomposition yields itself.
-@param dst Room for unitables_decompose_length(codepoint, mode).
-@return Code points written. */
+@param dst Room for UNITABLES_DECOMPOSE_MAX code points.
+@return Code points written, at most UNITABLES_DECOMPOSE_MAX. */
 uint32_t unitables_decompose(Unitables_Codepoint codepoint,
                              Unitables_Decomp_Mode mode,
                              Unitables_Codepoint* dst);
 
-/** @return Code points unitables_decompose will write, at most
-UNITABLES_DECOMPOSE_MAX. */
-uint32_t unitables_decompose_length(Unitables_Codepoint codepoint,
-                                    Unitables_Decomp_Mode mode);
-
 /** Canonically composes a pair, Hangul included.
 @return The composite, or UNITABLES_INVALID_CODEPOINT if they do not compose. */
-Unitables_Codepoint unitables_compose(Unitables_Codepoint starter,
-                                      Unitables_Codepoint following);
-
-/** @return The simple uppercase mapping of codepoint, or codepoint if it has
-none. One table lookup; no context-sensitive SpecialCasing.txt rules. */
-Unitables_Codepoint unitables_toupper(Unitables_Codepoint codepoint);
-
-/** @return The simple lowercase mapping of codepoint, or codepoint if it has
-none. One table lookup; no context-sensitive SpecialCasing.txt rules. */
-Unitables_Codepoint unitables_tolower(Unitables_Codepoint codepoint);
-
-/** @return The simple titlecase mapping of codepoint, or codepoint if it has
-none. One table lookup; no context-sensitive SpecialCasing.txt rules. */
-Unitables_Codepoint unitables_totitle(Unitables_Codepoint codepoint);
+Unitables_Codepoint unitables_compose(Unitables_Codepoint first,
+                                      Unitables_Codepoint second);
 
 /** Writes the default full case folding of codepoint into dst. A code point
 with no mapping yields itself. Folds one code point; does not process strings
 and does not apply Turkic rules.
-@param dst Room for unitables_casefold_length(codepoint).
-@return Code points written. */
+@param dst Room for UNITABLES_CASEFOLD_MAX code points.
+@return Code points written, at most UNITABLES_CASEFOLD_MAX. */
 uint32_t unitables_casefold(Unitables_Codepoint codepoint,
                             Unitables_Codepoint* dst);
-
-/** @return Code points unitables_casefold will write, at most
-UNITABLES_CASEFOLD_MAX. */
-uint32_t unitables_casefold_length(Unitables_Codepoint codepoint);
 
 /** Whether a grapheme cluster break is permitted between two consecutive code
 points (UAX #29 extended grapheme clusters).

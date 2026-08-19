@@ -88,19 +88,6 @@ static inline uint16_t const* unitables_sequence(uint16_t seqindex,
   return unit + 1;
 }
 
-/* Appends codepoint at index count; a null dst counts without writing. */
-static inline uint32_t unitables_append(Unitables_Codepoint codepoint,
-                                        Unitables_Codepoint* dst,
-                                        uint32_t count)
-{
-  if (dst)
-  {
-    dst[count] = codepoint;
-  }
-
-  return count + 1;
-}
-
 static uint32_t unitables_write_sequence(uint16_t seqindex,
                                          Unitables_Codepoint* dst)
 {
@@ -109,24 +96,11 @@ static uint32_t unitables_write_sequence(uint16_t seqindex,
 
   for (uint32_t i = 0; i < length; ++i)
   {
-    Unitables_Codepoint codepoint = unitables_decode_unit(&unit);
-    if (dst)
-    {
-      dst[i] = codepoint;
-    }
+    dst[i] = unitables_decode_unit(&unit);
     ++unit;
   }
 
   return length;
-}
-
-static Unitables_Codepoint unitables_decode_sequence_first(uint16_t seqindex)
-{
-  uint32_t length;
-  uint16_t const* unit = unitables_sequence(seqindex, &length);
-  (void)length;
-
-  return unitables_decode_unit(&unit);
 }
 
 static inline uint32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
@@ -142,13 +116,15 @@ static inline uint32_t unitables_decompose_hangul(Unitables_Codepoint syllable,
       UNITABLES_HANGUL_VBASE +
       (syllable % UNITABLES_HANGUL_NCOUNT) / UNITABLES_HANGUL_TCOUNT;
 
-  count = unitables_append(lead, dst, count);
-  count = unitables_append(vowel, dst, count);
-  if (trail != 0)
+  dst[count] = lead;
+  dst[count + 1] = vowel;
+  if (trail == 0)
   {
-    count = unitables_append(UNITABLES_HANGUL_TBASE + trail, dst, count);
+    return count + 2;
   }
-  return count;
+
+  dst[count + 2] = UNITABLES_HANGUL_TBASE + trail;
+  return count + 3;
 }
 
 static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
@@ -170,7 +146,8 @@ static uint32_t unitables_decompose_into(Unitables_Codepoint codepoint,
       (properties->decomp_type == 0 || mode != Unitables_Decomp_Mode_Canonical);
   if (!decomposable)
   {
-    return unitables_append(codepoint, dst, count);
+    dst[count] = codepoint;
+    return count + 1;
   }
 
   uint32_t length;
@@ -192,23 +169,18 @@ uint32_t unitables_decompose(Unitables_Codepoint codepoint,
 {
   if (codepoint < 0 || codepoint >= UNITABLES_MAX_CODEPOINT)
   {
-    return unitables_append(codepoint, dst, 0);
+    dst[0] = codepoint;
+    return 1;
   }
 
   return unitables_decompose_into(codepoint, dst, 0, mode);
 }
 
-uint32_t unitables_decompose_length(Unitables_Codepoint codepoint,
-                                    Unitables_Decomp_Mode mode)
-{
-  return unitables_decompose(codepoint, mode, NULL);
-}
-
 static Unitables_Codepoint unitables_compose_hangul(
-    Unitables_Codepoint starter, Unitables_Codepoint following)
+    Unitables_Codepoint first, Unitables_Codepoint second)
 {
-  Unitables_Codepoint lead = starter - UNITABLES_HANGUL_LBASE;
-  Unitables_Codepoint vowel = following - UNITABLES_HANGUL_VBASE;
+  Unitables_Codepoint lead = first - UNITABLES_HANGUL_LBASE;
+  Unitables_Codepoint vowel = second - UNITABLES_HANGUL_VBASE;
 
   if (lead >= 0 && lead < UNITABLES_HANGUL_LCOUNT && vowel >= 0 &&
       vowel < UNITABLES_HANGUL_VCOUNT)
@@ -217,41 +189,17 @@ static Unitables_Codepoint unitables_compose_hangul(
            (lead * UNITABLES_HANGUL_VCOUNT + vowel) * UNITABLES_HANGUL_TCOUNT;
   }
 
-  Unitables_Codepoint syllable = starter - UNITABLES_HANGUL_SBASE;
-  Unitables_Codepoint trail = following - UNITABLES_HANGUL_TBASE;
+  Unitables_Codepoint syllable = first - UNITABLES_HANGUL_SBASE;
+  Unitables_Codepoint trail = second - UNITABLES_HANGUL_TBASE;
 
   if (syllable >= 0 && syllable < UNITABLES_HANGUL_SCOUNT &&
       syllable % UNITABLES_HANGUL_TCOUNT == 0 && trail > 0 &&
       trail < UNITABLES_HANGUL_TCOUNT)
   {
-    return starter + trail;
+    return first + trail;
   }
 
   return UNITABLES_INVALID_CODEPOINT;
-}
-
-Unitables_Codepoint unitables_toupper(Unitables_Codepoint codepoint)
-{
-  uint16_t seqindex = unitables_properties(codepoint)->uppercase_seqindex;
-  return seqindex == UNITABLES_SEQ_NONE
-             ? codepoint
-             : unitables_decode_sequence_first(seqindex);
-}
-
-Unitables_Codepoint unitables_tolower(Unitables_Codepoint codepoint)
-{
-  uint16_t seqindex = unitables_properties(codepoint)->lowercase_seqindex;
-  return seqindex == UNITABLES_SEQ_NONE
-             ? codepoint
-             : unitables_decode_sequence_first(seqindex);
-}
-
-Unitables_Codepoint unitables_totitle(Unitables_Codepoint codepoint)
-{
-  uint16_t seqindex = unitables_properties(codepoint)->titlecase_seqindex;
-  return seqindex == UNITABLES_SEQ_NONE
-             ? codepoint
-             : unitables_decode_sequence_first(seqindex);
 }
 
 uint32_t unitables_casefold(Unitables_Codepoint codepoint,
@@ -262,40 +210,36 @@ uint32_t unitables_casefold(Unitables_Codepoint codepoint,
 
   if (properties->casefold_seqindex == UNITABLES_SEQ_NONE)
   {
-    return unitables_append(codepoint, dst, 0);
+    dst[0] = codepoint;
+    return 1;
   }
 
   return unitables_write_sequence(properties->casefold_seqindex, dst);
 }
 
-uint32_t unitables_casefold_length(Unitables_Codepoint codepoint)
+Unitables_Codepoint unitables_compose(Unitables_Codepoint first,
+                                      Unitables_Codepoint second)
 {
-  return unitables_casefold(codepoint, NULL);
-}
-
-Unitables_Codepoint unitables_compose(Unitables_Codepoint starter,
-                                      Unitables_Codepoint following)
-{
-  Unitables_Codepoint hangul = unitables_compose_hangul(starter, following);
+  Unitables_Codepoint hangul = unitables_compose_hangul(first, second);
   if (hangul != UNITABLES_INVALID_CODEPOINT)
   {
     return hangul;
   }
 
-  struct Unitables_Properties const* first = unitables_properties(starter);
-  struct Unitables_Properties const* second = unitables_properties(following);
+  struct Unitables_Properties const* p1 = unitables_properties(first);
+  struct Unitables_Properties const* p2 = unitables_properties(second);
 
-  if (first->comb_index == UNITABLES_COMB_NONE || !second->comb_issecond)
+  if (p1->comb_index == UNITABLES_COMB_NONE || !p2->comb_issecond)
   {
     return UNITABLES_INVALID_CODEPOINT;
   }
 
-  uint32_t start = first->comb_index;
-  uint32_t end = start + first->comb_length;
+  uint32_t start = p1->comb_index;
+  uint32_t end = start + p1->comb_length;
 
   for (uint32_t i = start; i < end; ++i)
   {
-    if (UNITABLES_COMBINATIONS_SECOND[i] == following)
+    if (UNITABLES_COMBINATIONS_SECOND[i] == second)
     {
       return UNITABLES_COMBINATIONS_COMBINED[i];
     }
